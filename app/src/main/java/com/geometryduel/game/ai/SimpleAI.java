@@ -1,7 +1,6 @@
 package com.geometryduel.game.ai;
 
 import com.geometryduel.game.entity.GameState;
-import com.geometryduel.game.entity.Player;
 import com.geometryduel.game.entity.Projectile;
 
 import java.util.List;
@@ -108,16 +107,13 @@ public class SimpleAI extends BaseAI {
         return AIDecision.shoot(predictEnemyX(), predictEnemyY(), difficulty.getAccuracy());
     }
 
-    private float applySpread(float val) {
-        float inaccuracy = 1.0f - difficulty.getAccuracy();
-        return val + (random.nextFloat() * 2 - 1) * inaccuracy * 80f;
-    }
-
-    private float predictEnemyX() {
+    @Override
+    protected float predictEnemyX() {
         return super.predictEnemyX() + (random.nextFloat() * 2 - 1) * (1.0f - difficulty.getAccuracy()) * 40f;
     }
 
-    private float predictEnemyY() {
+    @Override
+    protected float predictEnemyY() {
         return super.predictEnemyY() + (random.nextFloat() * 2 - 1) * (1.0f - difficulty.getAccuracy()) * 40f;
     }
 
