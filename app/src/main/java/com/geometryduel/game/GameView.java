@@ -3,19 +3,16 @@ package com.geometryduel.game;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.view.View;
 
 import com.geometryduel.game.entity.GameState;
 
-public class GameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+public class GameView extends View implements Runnable {
 
-    private SurfaceHolder holder;
     private Thread gameThread;
     private volatile boolean running;
     private boolean initialized;
@@ -24,7 +21,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
     private long lastFrameTime;
     private static final float TARGET_FPS = 60f;
-    private static final float FRAME_TIME = 1f / TARGET_FPS;
+    private static final float FRAME_TIME = 1_000_000_000f / TARGET_FPS;
 
     private boolean leftPressed;
     private boolean rightPressed;
@@ -58,10 +55,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     }
 
     private void init(Context context) {
-        setZOrderOnTop(true);
-        holder = getHolder();
-        holder.addCallback(this);
-        holder.setFormat(PixelFormat.OPAQUE);
         gameEngine = new GameEngine();
         initialized = false;
 
@@ -94,26 +87,24 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     }
 
     @Override
-    public void surfaceCreated(SurfaceHolder holder) {
-        if (!initialized && getWidth() > 0 && getHeight() > 0) {
-            gameEngine.initialize(gameMode, getWidth(), getHeight());
-            initialized = true;
-        }
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
         startGameLoop();
     }
 
     @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        if (!initialized && width > 0 && height > 0) {
-            gameEngine.initialize(gameMode, width, height);
-            initialized = true;
-        }
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        stopGameLoop();
     }
 
     @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        stopGameLoop();
-        initialized = false;
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (!initialized && w > 0 && h > 0) {
+            gameEngine.initialize(gameMode, w, h);
+            initialized = true;
+        }
     }
 
     private void startGameLoop() {
@@ -146,15 +137,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
             if (deltaTime > 0.1f) deltaTime = 0.1f;
 
+            if (!initialized && getWidth() > 0 && getHeight() > 0) {
+                gameEngine.initialize(gameMode, getWidth(), getHeight());
+                initialized = true;
+            }
+
             updateGame(deltaTime);
-            renderGame();
+            postInvalidate();
 
-            long elapsed = (System.nanoTime() - now) / 1_000_000;
-            long sleepTime = (long) (FRAME_TIME * 1000) - elapsed;
+            long elapsed = System.nanoTime() - now;
+            long sleepNs = (long) FRAME_TIME - elapsed;
 
-            if (sleepTime > 0) {
+            if (sleepNs > 0) {
                 try {
-                    Thread.sleep(sleepTime);
+                    long sleepMs = sleepNs / 1_000_000;
+                    int sleepExtraNs = (int) (sleepNs % 1_000_000);
+                    Thread.sleep(sleepMs, sleepExtraNs);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -188,23 +186,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         }
     }
 
-    private void renderGame() {
-        Canvas canvas = null;
-        try {
-            canvas = holder.lockCanvas();
-            if (canvas != null) {
-                gameEngine.render(canvas);
-                if (gameEngine.getMode() == GameMode.PLAYER_VS_AI) {
-                    drawControls(canvas);
-                }
-            }
-        } catch (Exception ignored) {
-        } finally {
-            if (canvas != null) {
-                try {
-                    holder.unlockCanvasAndPost(canvas);
-                } catch (Exception ignored) {}
-            }
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        gameEngine.render(canvas);
+        if (gameEngine.getMode() == GameMode.PLAYER_VS_AI) {
+            drawControls(canvas);
         }
     }
 
