@@ -3,31 +3,25 @@ package com.geometryduel.ui;
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.FrameLayout;
 
+import com.geometryduel.R;
 import com.geometryduel.game.GameMode;
 import com.geometryduel.game.GameView;
 
 public class MainActivity extends Activity {
 
     private GameView gameView;
-    private GameMode gameMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
         String modeStr = getIntent().getStringExtra("game_mode");
-        gameMode = GameMode.valueOf(modeStr != null ? modeStr : GameMode.PLAYER_VS_AI.name());
+        GameMode gameMode = GameMode.valueOf(modeStr != null ? modeStr : GameMode.PLAYER_VS_AI.name());
 
-        gameView = new GameView(this);
+        gameView = findViewById(R.id.game_view);
         gameView.setGameMode(gameMode);
-
-        setContentView(gameView,
-            new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            ));
     }
 
     @Override
