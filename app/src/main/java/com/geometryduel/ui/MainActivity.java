@@ -1,10 +1,9 @@
 package com.geometryduel.ui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.os.Bundle;
-import android.text.method.ScrollingMovementMethod;
 import android.view.View;
-import android.widget.TextView;
 
 import com.geometryduel.R;
 import com.geometryduel.game.GameMode;
@@ -21,31 +20,6 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            StringWriter sw = new StringWriter();
-            throwable.printStackTrace(new PrintWriter(sw));
-            String crashLog = sw.toString();
-
-            runOnUiThread(() -> {
-                TextView tv = new TextView(MainActivity.this);
-                tv.setText("CRASH\n\n" + crashLog);
-                tv.setTextColor(0xFFFFFFFF);
-                tv.setBackgroundColor(0xFF1A0000);
-                tv.setTextSize(13f);
-                tv.setPadding(32, 32, 32, 32);
-                tv.setMovementMethod(new ScrollingMovementMethod());
-                tv.setOnLongClickListener(v -> {
-                    android.content.ClipboardManager clipboard =
-                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                    android.content.ClipData clip =
-                        android.content.ClipData.newPlainText("crash", crashLog);
-                    clipboard.setPrimaryClip(clip);
-                    return true;
-                });
-                setContentView(tv);
-            });
-        });
-
         try {
             setContentView(R.layout.activity_main);
 
@@ -57,26 +31,21 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
-            String crashLog = sw.toString();
-
-            TextView tv = new TextView(this);
-            tv.setText("CRASH IN ONCREATE\n\n" + crashLog);
-            tv.setTextColor(0xFFFFFFFF);
-            tv.setBackgroundColor(0xFF1A0000);
-            tv.setTextSize(13f);
-            tv.setPadding(32, 32, 32, 32);
-            tv.setMovementMethod(new ScrollingMovementMethod());
-            String finalLog = crashLog;
-            tv.setOnLongClickListener(v -> {
-                android.content.ClipboardManager clipboard =
-                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                android.content.ClipData clip =
-                    android.content.ClipData.newPlainText("crash", finalLog);
-                clipboard.setPrimaryClip(clip);
-                return true;
-            });
-            setContentView(tv);
+            showError(sw.toString());
         }
+    }
+
+    private void showError(String msg) {
+        new AlertDialog.Builder(this)
+            .setTitle("Crash")
+            .setMessage(msg)
+            .setPositiveButton("Copy", (d, w) -> {
+                android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("err", msg));
+            })
+            .setNegativeButton("Close", (d, w) -> finish())
+            .show();
     }
 
     @Override
@@ -96,9 +65,7 @@ public class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {
-            hideSystemUI();
-        }
+        if (hasFocus) hideSystemUI();
     }
 
     private void hideSystemUI() {
