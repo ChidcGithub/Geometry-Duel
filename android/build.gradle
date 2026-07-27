@@ -59,8 +59,7 @@ tasks.register("extractNatives", Copy) {
         if (jar != null) {
             from(zipTree(jar)) {
                 include "**/libgdx.so"
-                into abi
-                eachFile { it.path = it.name } // 扁平化为 <abi>/libgdx.so
+                eachFile { it.path = abi + '/' + it.name } // 强制 <abi>/libgdx.so
                 duplicatesStrategy = DuplicatesStrategy.EXCLUDE
             }
         }
