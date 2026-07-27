@@ -19,16 +19,17 @@ public class MatchStats {
      * 行为奖励（reward shaping）带封顶、权重远小于胜负/命中：
      * 引导网络先学会「会用技能」，再由胜负大分主导进化，避免学会刷招。
      *
-     * @param shaping 课程式系数：前期 >1 强行引导技能使用，随世代衰减到 0.2 保底
+     * @param shaping       课程式系数：前期 >1 强行引导技能使用，随世代衰减到 0.2 保底
+     * @param teleportScale 传送奖励的独立衰减（1→0）：传送极易刷分，奖励应尽早归零
      */
-    public float fitness(float shaping) {
+    public float fitness(float shaping, float teleportScale) {
         float f = aiWon ? 100f : 0f;
         f += Math.min(frames, 7200) / 7200f * 20f;
         f += hitsDealt * 15f;
         f -= hitsTaken * 5f;
         f += Math.min(shotsFired, 40) * 0.5f * shaping;
-        f += Math.min(longShotsFired, 10) * 5f * shaping;
-        f += Math.min(teleportsUsed, 8) * 3f * shaping;
+        f += Math.min(longShotsFired, 10) * 8f * shaping; // 大招重奖（8/支）
+        f += Math.min(teleportsUsed, 8) * 2f * shaping * teleportScale; // 闪避轻奖且加速衰减
         // 超时惩罚：对战时间超过 60 秒仍未分出胜负，分数开始线性降低（-2 分/秒），
         // 2 分钟打满时 -120 分已超过胜利分——逼迫 AI 主动进攻尽快击杀，而非拖时间
         int playFrames = frames - COUNTDOWN_FRAMES;
@@ -38,8 +39,8 @@ public class MatchStats {
         return f;
     }
 
-    /** 无课程缩放（shaping=1）。 */
+    /** 无课程缩放（shaping=1，传送不衰减）。 */
     public float fitness() {
-        return fitness(1f);
+        return fitness(1f, 1f);
     }
 }
