@@ -5,6 +5,7 @@ import com.geometryduel.game.actor.ArrowActor;
 import com.geometryduel.game.actor.LongbowArrowHead;
 import com.geometryduel.game.actor.PlayerActor;
 import com.geometryduel.game.actor.ShortbowArrow;
+import com.geometryduel.game.state.DrawLongbowState;
 
 import java.util.ArrayList;
 
@@ -25,10 +26,14 @@ public class MatchTracker {
     private int lastRecallFrame = -COMBO_WINDOW;
     private boolean enemyWasAlive;
 
+    /** 大招瞄准判定阈值：约 7°。 */
+    public static final float AIM_TOLERANCE = 0.12f;
+
     public int shotsFired;
     public int longShotsFired;
     public int teleportsUsed;
     public int teleportKills; // 传送后 5 秒内击杀对手的次数
+    public int aimedFrames;   // 蓄长弓期间瞄准线对准敌人的帧数
 
     public MatchTracker(ActorGroup group) {
         this.group = group;
@@ -58,11 +63,21 @@ public class MatchTracker {
         }
 
         // 敌方击杀检测：上帧存活、本帧消失；发生在回传后 5 秒内 → 连击 +1
-        boolean enemyAlive = group.enemyGroup != null && group.enemyGroup.firstPlayer() != null;
+        PlayerActor enemy = group.enemyGroup != null ? group.enemyGroup.firstPlayer() : null;
+        boolean enemyAlive = enemy != null;
         if (enemyWasAlive && !enemyAlive && frame - lastRecallFrame <= COMBO_WINDOW) {
             teleportKills++;
         }
         enemyWasAlive = enemyAlive;
+
+        // 大招蓄力中：瞄准线与敌人方向误差 <7° 的每帧计一次有效瞄准
+        if (p != null && enemy != null && p.state instanceof DrawLongbowState) {
+            float want = (float) Math.atan2(enemy.pos.y - p.pos.y, enemy.pos.x - p.pos.x);
+            float err = p.aimAngle - want;
+            while (err > 3.1415927f) err -= 6.2831855f;
+            while (err < -3.1415927f) err += 6.2831855f;
+            if (Math.abs(err) < AIM_TOLERANCE) aimedFrames++;
+        }
     }
 
     public void fill(MatchStats m) {
@@ -70,5 +85,6 @@ public class MatchTracker {
         m.longShotsFired = longShotsFired;
         m.teleportsUsed = teleportsUsed;
         m.teleportKills = teleportKills;
+        m.aimedFrames = aimedFrames;
     }
 }

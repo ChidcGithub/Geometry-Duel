@@ -14,6 +14,7 @@ public class MatchStats {
     public int longShotsFired;  // 射出的长箭数（大招）
     public int teleportsUsed;   // 传送（闪避）使用次数
     public int teleportKills;   // 传送后 5 秒内击杀对手的次数（连击）
+    public int aimedFrames;     // 蓄长弓期间瞄准线对准敌人（误差<7°）的帧数
 
     /**
      * 适应度：胜利大分 + 存活时间 + 命中奖励 - 受击惩罚 + 技能使用行为奖励。
@@ -31,6 +32,8 @@ public class MatchStats {
         f += Math.min(longShotsFired, 10) * 8f * shaping; // 大招重奖（8/支）
         f += Math.min(teleportsUsed, 8) * 2f * shaping;   // 闪避轻奖（随课程衰减但不归零）
         f += teleportKills * 20f; // 传送→5秒内击杀连击：+20，不衰减，鼓励「闪避是为了进攻」
+        // 大招瞄准奖：蓄力期间对准敌人的每帧 +0.05（封顶 300 帧=5 秒），稠密信号引导学会瞄准
+        f += Math.min(aimedFrames, 300) * 0.05f * shaping;
         // 超时惩罚：对战时间超过 60 秒仍未分出胜负，分数开始线性降低（-2 分/秒），
         // 2 分钟打满时 -120 分已超过胜利分——逼迫 AI 主动进攻尽快击杀，而非拖时间
         int playFrames = frames - COUNTDOWN_FRAMES;

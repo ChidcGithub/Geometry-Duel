@@ -108,7 +108,8 @@ public class NeatTrainer {
         realMatchBonus += (m.aiWon ? 1000f : -30f)
                 + Math.min(m.longShotsFired, 10) * 2f
                 + Math.min(m.teleportsUsed, 8) * 1f
-                + m.teleportKills * 20f;
+                + m.teleportKills * 20f
+                + Math.min(m.aimedFrames, 300) * 0.05f;
     }
 
     /** 录入一局玩家行为录像（幽灵陪练），FIFO 保留最近 MAX_GHOSTS 局并落盘。 */
