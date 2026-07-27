@@ -13,8 +13,10 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.geometryduel.GeometryDuelGame;
 import com.geometryduel.game.GameSystem;
 import com.geometryduel.game.InputData;
+import com.geometryduel.game.actor.PlayerActor;
 import com.geometryduel.game.engine.PlayerEngine;
 import com.geometryduel.neat.Genome;
+import com.geometryduel.neat.GhostRecorder;
 import com.geometryduel.neat.MatchStats;
 import com.geometryduel.neat.MatchTracker;
 import com.geometryduel.neat.NeatEngine;
@@ -46,6 +48,8 @@ public class GameScreen extends ScreenAdapter {
     private boolean matchReported;
     /** 敌方为 NEAT 冠军时逐帧统计其技能使用（供实战上报）。 */
     private MatchTracker aiTracker;
+    /** 玩家行为录制（非演示局），结算时作为幽灵陪练上报训练器。 */
+    private GhostRecorder ghostRecorder;
 
     // 触控
     private int joyPointer = -1, zPointer = -1, xPointer = -1, cPointer = -1;
@@ -94,6 +98,7 @@ public class GameScreen extends ScreenAdapter {
         system = new GameSystem(app, demo, instruction, currentLevel(), input,
                 engineA, engineB, false, null);
         aiTracker = (!demo && engineB != null) ? new MatchTracker(system.otherGroup) : null;
+        ghostRecorder = !demo ? new GhostRecorder() : null;
         input.isZPressed = input.isXPressed = input.isCPressed = false;
         accumulator = 0;
     }
@@ -118,6 +123,8 @@ public class GameScreen extends ScreenAdapter {
         ms.hitsTaken = system.otherGroup.damageCount; // AI 受击
         if (aiTracker != null) aiTracker.fill(ms);    // AI 技能使用统计
         app.trainer.reportRealMatch(ms);
+        // 玩家行为录像入库：成为后续训练的幽灵陪练
+        if (ghostRecorder != null) app.trainer.addGhost(ghostRecorder.build());
         app.trainer.setPaused(false);
     }
 
@@ -228,6 +235,11 @@ public class GameScreen extends ScreenAdapter {
         system.restartPressed = input.isXPressed;
         system.update();
         if (aiTracker != null) aiTracker.update();
+        // 逐帧录制玩家操作（仅对战状态，与 act 调用时机对齐）
+        if (ghostRecorder != null && system.currentState instanceof PlayGameState) {
+            PlayerActor human = system.myGroup.firstPlayer();
+            if (human != null) ghostRecorder.frame(human.engine);
+        }
         if (!system.demoPlay && !matchReported && system.currentState instanceof ResultGameState) {
             matchReported = true;
             reportMatchResult();
@@ -371,7 +383,8 @@ public class GameScreen extends ScreenAdapter {
             if (app.trainer != null) {
                 String prog = "AI Gen " + app.trainer.generation()
                         + "  Best " + Math.round(app.trainer.bestFitness())
-                        + "  Sims " + app.trainer.simMatches();
+                        + "  Sims " + app.trainer.simMatches()
+                        + "  Ghosts " + app.trainer.ghostCount();
                 app.font.getData().setScale(1.2f * unit);
                 layout.setText(app.font, prog);
                 app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 0.55f);

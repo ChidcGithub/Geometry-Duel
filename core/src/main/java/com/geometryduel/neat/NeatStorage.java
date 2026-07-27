@@ -13,6 +13,7 @@ import java.util.ArrayList;
 public class NeatStorage {
     private static final int VERSION = 1;
     private static final String FILE = "neat-ai.json";
+    private static final String GHOST_FILE = "neat-ghosts.json";
 
     public static class SaveData {
         public int version;
@@ -66,7 +67,48 @@ public class NeatStorage {
     public static void clear() {
         try {
             Gdx.files.local(FILE).delete();
+            Gdx.files.local(GHOST_FILE).delete();
         } catch (Throwable ignored) {
+        }
+    }
+
+    // ------------------------------------------------------------ 玩家幽灵录像
+
+    public static class GhostSave {
+        public int version;
+        public ArrayList<GhostData> ghosts;
+    }
+
+    public static ArrayList<GhostData> loadGhosts() {
+        ArrayList<GhostData> out = new ArrayList<GhostData>();
+        try {
+            FileHandle fh = Gdx.files.local(GHOST_FILE);
+            if (!fh.exists()) return out;
+            GhostSave d = new Json().fromJson(GhostSave.class, fh);
+            if (d == null || d.version != VERSION || d.ghosts == null) return out;
+            // 过滤损坏/不完整条目，绝不崩溃
+            for (GhostData g : d.ghosts) {
+                if (g != null && g.frames > 0
+                        && g.moveX != null && g.moveX.length >= g.frames
+                        && g.moveY != null && g.moveY.length >= g.frames
+                        && g.buttons != null && g.buttons.length >= g.frames) {
+                    out.add(g);
+                }
+            }
+        } catch (Throwable t) {
+            Gdx.app.error("NeatStorage", "load ghosts failed", t);
+        }
+        return out;
+    }
+
+    public static void saveGhosts(ArrayList<GhostData> ghosts) {
+        try {
+            GhostSave d = new GhostSave();
+            d.version = VERSION;
+            d.ghosts = new ArrayList<GhostData>(ghosts);
+            Gdx.files.local(GHOST_FILE).writeString(new Json().toJson(d), false);
+        } catch (Throwable t) {
+            Gdx.app.error("NeatStorage", "save ghosts failed", t);
         }
     }
 }

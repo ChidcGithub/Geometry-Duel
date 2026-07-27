@@ -9,6 +9,7 @@ import com.geometryduel.game.state.ResultGameState;
 
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 后台训练线程：无头 GameSystem 快速模拟（候选 vs 规则 AI / 名人堂冠军），
@@ -20,6 +21,7 @@ import java.util.Random;
 public class NeatTrainer {
     public static final int POPULATION = 50;
     private static final int MAX_MATCH_FRAMES = 180 + 7200; // 倒计时 + 2 分钟
+    private static final int MAX_GHOSTS = 5;                // 玩家幽灵池上限（FIFO）
 
     private final GeometryDuelGame app;
     private final Random rng = new Random();
@@ -36,6 +38,8 @@ public class NeatTrainer {
     private volatile boolean paused;
     private volatile boolean stopped;
     private float realMatchBonus;
+    /** 玩家行为录像池（UI 线程写、训练线程读，CopyOnWrite 保证安全）。 */
+    private final CopyOnWriteArrayList<GhostData> ghosts = new CopyOnWriteArrayList<GhostData>();
 
     private Thread thread;
 
@@ -74,6 +78,7 @@ public class NeatTrainer {
     public void reset(int newRayCount) {
         rayCount = newRayCount;
         NeatStorage.clear();
+        ghosts.clear();
         champion = null;
         championSource = null;
         hallOfFame = null;
@@ -100,6 +105,23 @@ public class NeatTrainer {
         realMatchBonus += (m.aiWon ? 30f : -30f)
                 + Math.min(m.longShotsFired, 10) * 1.5f
                 + Math.min(m.teleportsUsed, 8) * 1f;
+    }
+
+    /** 录入一局玩家行为录像（幽灵陪练），FIFO 保留最近 MAX_GHOSTS 局并落盘。 */
+    public void addGhost(GhostData g) {
+        if (g == null || g.frames < 300) return; // 短于 5 秒的录像没有学习价值
+        ghosts.add(0, g);
+        while (ghosts.size() > MAX_GHOSTS) ghosts.remove(ghosts.size() - 1);
+        NeatStorage.saveGhosts(new ArrayList<GhostData>(ghosts));
+    }
+
+    public int ghostCount() {
+        return ghosts.size();
+    }
+
+    private GhostData pickGhost() {
+        if (ghosts.isEmpty()) return null;
+        return ghosts.get(rng.nextInt(ghosts.size()));
     }
 
     public Genome currentChampion() {
@@ -151,6 +173,11 @@ public class NeatTrainer {
         } else {
             evolver = newEvolver(rayCount, null, null);
         }
+        ArrayList<GhostData> loaded = NeatStorage.loadGhosts();
+        for (int i = 0; i < loaded.size() && ghosts.size() < MAX_GHOSTS; i++) {
+            ghosts.add(loaded.get(i));
+        }
+        if (!ghosts.isEmpty()) Gdx.app.log("NeatTrainer", "loaded ghosts: " + ghosts.size());
     }
 
     private NeatEvolver newEvolver(int rays, ArrayList<Genome> population,
@@ -168,15 +195,24 @@ public class NeatTrainer {
         for (int i = 0; i < pop.size(); i++) {
             if (stopped || paused || ev != evolver) return; // 代中止：不进化，下轮重跑
             Genome g = pop.get(i);
-            MatchStats m1 = simulate(g, null);
-            float f = m1.fitness();
+            float f = 0f;
+            int n = 0;
+            f += simulate(g, null, null).fitness(); // vs 规则 AI
+            n++;
             simMatches++;
             Genome hof = hallOfFame;
             if (hof != null) {
-                MatchStats m2 = simulate(g, hof);
-                f = (f + m2.fitness()) * 0.5f;
+                f += simulate(g, hof, null).fitness(); // vs 上代冠军
+                n++;
                 simMatches++;
             }
+            GhostData ghost = pickGhost();
+            if (ghost != null) {
+                f += simulate(g, null, ghost).fitness(); // vs 玩家影子
+                n++;
+                simMatches++;
+            }
+            f /= n;
             if (g == championSource) f += realMatchBonus;
             fitness[i] = f;
         }
@@ -197,10 +233,10 @@ public class NeatTrainer {
     }
 
     /**
-     * 无头快速模拟一局：候选为 myGroup，对手为规则 AI（vsRule==null 时）
-     * 或指定基因组（名人堂）。逻辑/渲染已分离，全程纯 Java 运算。
+     * 无头快速模拟一局：候选为 myGroup；对手按优先级为 玩家幽灵 > 指定基因组（名人堂） > 规则 AI。
+     * 逻辑/渲染已分离，全程纯 Java 运算。
      */
-    private MatchStats simulate(final Genome candidate, final Genome vsGenome) {
+    private MatchStats simulate(final Genome candidate, final Genome vsGenome, final GhostData ghost) {
         final int rays = rayCount;
         GameSystem.EngineFactory engineA = new GameSystem.EngineFactory() {
             @Override
@@ -211,7 +247,8 @@ public class NeatTrainer {
         GameSystem.EngineFactory engineB = new GameSystem.EngineFactory() {
             @Override
             public PlayerEngine create(GameSystem sys) {
-                return vsGenome != null ? (PlayerEngine) new NeatEngine(vsGenome, rays)
+                return ghost != null ? (PlayerEngine) new ReplayEngine(ghost)
+                        : vsGenome != null ? (PlayerEngine) new NeatEngine(vsGenome, rays)
                         : new ComputerEngine(sys, 1.0f);
             }
         };
