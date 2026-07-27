@@ -236,7 +236,16 @@ public class GameEngine {
     }
 
     public void render(Canvas canvas) {
-        canvas.drawColor(COLOR_BG);
+        canvas.drawColor(0xFF111118);
+
+        if (arenaWidth <= 0 || arenaHeight <= 0) {
+            Paint diagPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            diagPaint.setColor(0xFFFFFFFF);
+            diagPaint.setTextSize(32f);
+            diagPaint.setTextAlign(Paint.Align.CENTER);
+            canvas.drawText("Loading...", canvas.getWidth() / 2f, canvas.getHeight() / 2f, diagPaint);
+            return;
+        }
 
         drawArenaGrid(canvas);
 
