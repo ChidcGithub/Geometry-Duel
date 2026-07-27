@@ -58,9 +58,10 @@ tasks.register("extractNatives", Copy) {
         def jar = configurations.natives.files.find { it.name.endsWith("natives-" + abi + ".jar") }
         if (jar != null) {
             from(zipTree(jar)) {
-                include "**/*.so"
+                include "**/libgdx.so"
                 into abi
                 eachFile { it.path = it.name } // 扁平化为 <abi>/libgdx.so
+                duplicatesStrategy = DuplicatesStrategy.EXCLUDE
             }
         }
     }
