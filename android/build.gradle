@@ -43,11 +43,15 @@ configurations {
 dependencies {
     implementation project(':core')
     implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
-    // libgdx.so 各 ABI 原生库（jar 形式发布，需解压进 jniLibs，否则 GdxNativesLoader 启动即崩溃）
+    // libgdx.so / libgdx-freetype.so 各 ABI 原生库（jar 形式发布，需解压进 jniLibs，否则启动即崩溃）
     natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
     natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
     natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
     natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86_64"
+    natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-armeabi-v7a"
+    natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-arm64-v8a"
+    natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86"
+    natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86_64"
 }
 
 def extractedNativesDir = layout.buildDirectory.dir("extracted-natives")
@@ -55,11 +59,11 @@ def extractedNativesDir = layout.buildDirectory.dir("extracted-natives")
 tasks.register("extractNatives", Copy) {
     def abis = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
     abis.each { abi ->
-        def jar = configurations.natives.files.find { it.name.endsWith("natives-" + abi + ".jar") }
-        if (jar != null) {
+        // 同一 ABI 有多个 jar（gdx-platform + gdx-freetype-platform），须 findAll 全部处理
+        configurations.natives.files.findAll { it.name.endsWith("natives-" + abi + ".jar") }.each { jar ->
             from(zipTree(jar)) {
-                include "**/libgdx.so"
-                eachFile { it.path = abi + '/' + it.name } // 强制 <abi>/libgdx.so
+                include "**/libgdx*.so"
+                eachFile { it.path = abi + '/' + it.name } // 强制 <abi>/libgdx*.so
                 duplicatesStrategy = DuplicatesStrategy.EXCLUDE
             }
         }
