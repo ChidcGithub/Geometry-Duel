@@ -5,7 +5,6 @@ import com.geometryduel.game.actor.ArrowActor;
 import com.geometryduel.game.actor.LongbowArrowHead;
 import com.geometryduel.game.actor.PlayerActor;
 import com.geometryduel.game.actor.ShortbowArrow;
-import com.geometryduel.game.state.DoTeleportState;
 
 import java.util.ArrayList;
 
@@ -18,7 +17,7 @@ import java.util.ArrayList;
 public class MatchTracker {
     private final ActorGroup group;
     private final ArrayList<ArrowActor> prevArrows = new ArrayList<ArrowActor>();
-    private boolean wasTeleporting;
+    private int prevRecallCount;
 
     public int shotsFired;
     public int longShotsFired;
@@ -42,12 +41,11 @@ public class MatchTracker {
         prevArrows.clear();
         prevArrows.addAll(arrows);
 
-        // 进入传送状态的上升沿计一次使用
+        // 成功回传（瞬移）次数：读取 PlayerActor 的累计计数差值
         PlayerActor p = group.firstPlayer();
         if (p != null) {
-            boolean teleporting = p.state instanceof DoTeleportState;
-            if (teleporting && !wasTeleporting) teleportsUsed++;
-            wasTeleporting = teleporting;
+            teleportsUsed += p.teleportRecallCount - prevRecallCount;
+            prevRecallCount = p.teleportRecallCount;
         }
     }
 

@@ -11,7 +11,6 @@ import com.geometryduel.game.engine.PlayerEngine;
 import com.geometryduel.game.gfx.GameBackground;
 import com.geometryduel.game.gfx.ParticleSet;
 import com.geometryduel.game.state.DamagedState;
-import com.geometryduel.game.state.DoTeleportState;
 import com.geometryduel.game.state.DrawLongbowState;
 import com.geometryduel.game.state.DrawShortbowState;
 import com.geometryduel.game.state.GameSystemState;
@@ -76,18 +75,15 @@ public class GameSystem {
         myGroup.enemyGroup = otherGroup;
         otherGroup.enemyGroup = myGroup;
 
-        // 状态机接线（还原 prepareServer / ClientGameSystem 构造）
+        // 状态机接线（还原 prepareServer / ClientGameSystem 构造；传送已移出状态机）
         MoveState move = new MoveState();
         DrawShortbowState shortbow = new DrawShortbowState(this);
         DrawLongbowState longbow = new DrawLongbowState(this);
-        DoTeleportState teleport = new DoTeleportState(this);
         damagedState = new DamagedState();
         move.drawShortbowState = shortbow;
         move.drawLongbowState = longbow;
-        move.doTeleportState = teleport;
         shortbow.moveState = move;
         longbow.moveState = move;
-        teleport.moveState = move;
         damagedState.moveState = move;
 
         PlayerEngine engineA = engineAFactory != null ? engineAFactory.create(this)

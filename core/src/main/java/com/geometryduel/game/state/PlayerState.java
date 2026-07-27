@@ -27,10 +27,6 @@ public abstract class PlayerState {
         return false;
     }
 
-    public boolean hasCompletedTeleportCharge(PlayerActor p) {
-        return false;
-    }
-
     /** 敌方玩家相对本玩家的角度（getEnemyPlayerActorAngle）。 */
     protected float enemyAngle(PlayerActor p) {
         PlayerActor enemy = p.group.enemyGroup.firstPlayer();

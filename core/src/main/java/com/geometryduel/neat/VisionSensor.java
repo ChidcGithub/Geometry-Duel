@@ -3,7 +3,6 @@ package com.geometryduel.neat;
 import com.geometryduel.game.actor.ArrowActor;
 import com.geometryduel.game.actor.PlayerActor;
 import com.geometryduel.game.state.DamagedState;
-import com.geometryduel.game.state.DoTeleportState;
 import com.geometryduel.game.state.DrawLongbowState;
 
 /**
@@ -107,8 +106,8 @@ public class VisionSensor {
                 ? self.damageRemainingFrameCount / (float) DamagedState.DURATION : 0f;
         out[g + 4] = self.state instanceof DrawLongbowState
                 ? Math.min(1f, self.chargedFrameCount / (float) DrawLongbowState.CHARGE_REQUIRED) : 0f;
-        out[g + 5] = self.state instanceof DoTeleportState
-                ? Math.min(1f, self.teleportChargedFrameCount / (float) DoTeleportState.CHARGE_REQUIRED) : 0f;
+        out[g + 5] = self.teleportMarked
+                ? self.teleportMarkRemaining / (float) PlayerActor.TELEPORT_MARK_DURATION : 0f;
     }
 
     /** 射线-圆求交，返回最近正距离；未命中返回 MAX_SIGHT。 */

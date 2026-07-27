@@ -104,6 +104,7 @@ public class PlayGameState extends GameSystemState {
         p.vel.y += (float) Math.sin(ang) * 20f;
         p.state = system.damagedState.entryState(p);
         p.group.damageCount++;
+        p.onDamaged(); // 传送标记倒计时 -4 秒
         system.screenShakeValue += 10f;
         system.playHurt();
     }

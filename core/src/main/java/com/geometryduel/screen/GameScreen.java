@@ -325,6 +325,15 @@ public class GameScreen extends ScreenAdapter {
         drawCircleButton(s, zX, zY, zR, input.isZPressed);
         drawCircleButton(s, xX, xY, xR, input.isXPressed);
         drawCircleButton(s, cX, cY, cR, input.isCPressed);
+        // C 键外圈：传送标记倒计时环
+        PlayerActor human = system.myGroup.firstPlayer();
+        if (human != null && human.teleportMarked) {
+            float progress = human.teleportMarkRemaining / (float) PlayerActor.TELEPORT_MARK_DURATION;
+            s.noFill();
+            s.stroke(human.teleportMarkRemaining < 180 ? app.theme.longbowEffect : app.theme.teleportEffect);
+            s.strokeWeight(3f);
+            s.arc(cX, cY, cR + 8f, 90f, progress * 360f);
+        }
     }
 
     private void drawCircleButton(com.geometryduel.render.Shapes s, float cx, float cy, float r, boolean pressed) {

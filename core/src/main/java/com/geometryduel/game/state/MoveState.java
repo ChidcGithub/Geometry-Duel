@@ -5,12 +5,12 @@ import com.geometryduel.render.Shapes;
 
 /**
  * 移动状态（还原 MovePlayerActorState）：
- * 全速移动；按下 Z/X/C 分别进入短弓/长弓/传送状态，进入时瞄准角重置为指向敌人。
+ * 全速移动；按下 Z/X 分别进入短弓/长弓状态，进入时瞄准角重置为指向敌人。
+ * （传送不再占用状态机，由 PlayerActor.handleTeleport 中央处理，任何状态下都可标记/回传）
  */
 public class MoveState extends PlayerState {
     public DrawShortbowState drawShortbowState;
     public DrawLongbowState drawLongbowState;
-    public DoTeleportState doTeleportState;
 
     @Override
     public void act(PlayerActor p) {
@@ -20,9 +20,6 @@ public class MoveState extends PlayerState {
             p.aimAngle = enemyAngle(p);
         } else if (p.engine.longShotButtonPressed) {
             p.state = drawLongbowState.entryState(p);
-            p.aimAngle = enemyAngle(p);
-        } else if (p.engine.teleportButtonPressed) {
-            p.state = doTeleportState.entryState(p);
             p.aimAngle = enemyAngle(p);
         }
     }
