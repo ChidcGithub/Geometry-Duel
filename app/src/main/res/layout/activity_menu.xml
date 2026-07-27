@@ -4,30 +4,72 @@
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="vertical"
-    android:background="#1A1A2E">
+    android:background="@color/bg_black"
+    android:padding="48dp">
+
+    <View
+        android:layout_width="64dp"
+        android:layout_height="2dp"
+        android:background="@color/white"
+        android:layout_marginBottom="32dp" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Geometry Duel"
-        android:textSize="36sp"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        android:layout_marginBottom="40dp" />
+        android:text="GEOMETRY DUEL"
+        android:textSize="42sp"
+        android:textColor="@color/white"
+        android:fontFamily="sans-serif-black"
+        android:letterSpacing="0.15"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SELECT MODE"
+        android:textSize="12sp"
+        android:textColor="@color/white_50"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.25"
+        android:layout_marginBottom="56dp" />
 
     <Button
         android:id="@+id/btn_pve"
-        android:layout_width="240dp"
-        android:layout_height="56dp"
-        android:text="@string/mode_pve"
+        android:layout_width="280dp"
+        android:layout_height="60dp"
+        android:background="@drawable/btn_metro_outline"
+        android:text="PLAYER VS AI"
+        android:textColor="@color/white"
         android:textSize="18sp"
-        android:layout_marginBottom="16dp" />
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.05"
+        android:textAllCaps="false"
+        android:gravity="center"
+        android:stateListAnimator="@null"
+        android:layout_marginBottom="20dp" />
 
     <Button
         android:id="@+id/btn_aivai"
-        android:layout_width="240dp"
-        android:layout_height="56dp"
-        android:text="@string/mode_aivai"
-        android:textSize="18sp" />
+        android:layout_width="280dp"
+        android:layout_height="60dp"
+        android:background="@drawable/btn_metro_outline"
+        android:text="AI VS AI"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.05"
+        android:textAllCaps="false"
+        android:gravity="center"
+        android:stateListAnimator="@null"
+        android:layout_marginBottom="56dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SPECTATE"
+        android:textSize="10sp"
+        android:textColor="@color/white_30"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.25" />
 
 </LinearLayout>

@@ -2,11 +2,42 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1A1A2E">
+    android:background="@color/bg_black">
 
     <com.geometryduel.game.GameView
         android:id="@+id/game_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/overlay_game_over"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:background="@color/black_80"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tv_game_over_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="48sp"
+            android:textColor="@color/white"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="0.1"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/tv_game_over_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TAP TO RESTART"
+            android:textSize="14sp"
+            android:textColor="@color/white_50"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.2" />
+
+    </LinearLayout>
 
 </FrameLayout>

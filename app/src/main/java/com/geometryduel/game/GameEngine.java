@@ -1,9 +1,9 @@
 package com.geometryduel.game;
 
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 
 import com.geometryduel.game.ai.AIController;
 import com.geometryduel.game.ai.AIDifficulty;
@@ -21,54 +21,101 @@ public class GameEngine {
     private float arenaWidth;
     private float arenaHeight;
 
-    private Paint player1Paint;
-    private Paint player2Paint;
-    private Paint projectilePaint;
-    private Paint hpBarBgPaint;
-    private Paint hpBarPaint;
-    private Paint arenaPaint;
-    private Paint textPaint;
-    private Paint glowPaint;
+    private final int COLOR_BG = 0xFF0D0D0D;
+    private final int COLOR_P1_FILL = 0xFFFFFFFF;
+    private final int COLOR_P1_STROKE = 0xFF888888;
+    private final int COLOR_P2_FILL = 0xFF1C1C1E;
+    private final int COLOR_P2_STROKE = 0xFFFFFFFF;
+    private final int COLOR_GRID = 0x14FFFFFF;
+    private final int COLOR_CENTER = 0x26FFFFFF;
+    private final int COLOR_HP_BG = 0xFF2A2A2D;
+    private final int COLOR_HP_FILL = 0xFFFFFFFF;
+    private final int COLOR_HP_LOW = 0xFF666666;
+    private final int COLOR_TEXT = 0xFFFFFFFF;
+    private final int COLOR_TEXT_DIM = 0x80FFFFFF;
+    private final int COLOR_OVERLAY = 0xE6000000;
 
-    private RectF hpBarRect;
+    private Paint p1FillPaint;
+    private Paint p1StrokePaint;
+    private Paint p2FillPaint;
+    private Paint p2StrokePaint;
+    private Paint projectilePaint;
+    private Paint hpBgPaint;
+    private Paint hpFillPaint;
+    private Paint textPaint;
+    private Paint textDimPaint;
+    private Paint textLargePaint;
+    private Paint gridPaint;
+    private Paint centerPaint;
+    private Paint overlayPaint;
+    private Paint separatorPaint;
+
+    private RectF hpRect;
     private boolean running;
 
     public GameEngine() {
         this.gameState = new GameState(0, 0);
 
-        player1Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        player1Paint.setColor(0xFF448AFF);
-        player1Paint.setStyle(Paint.Style.FILL);
+        p1FillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p1FillPaint.setColor(COLOR_P1_FILL);
+        p1FillPaint.setStyle(Paint.Style.FILL);
 
-        player2Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        player2Paint.setColor(0xFFFF4444);
-        player2Paint.setStyle(Paint.Style.FILL);
+        p1StrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p1StrokePaint.setColor(COLOR_P1_STROKE);
+        p1StrokePaint.setStyle(Paint.Style.STROKE);
+        p1StrokePaint.setStrokeWidth(2f);
+
+        p2FillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p2FillPaint.setColor(COLOR_P2_FILL);
+        p2FillPaint.setStyle(Paint.Style.FILL);
+
+        p2StrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p2StrokePaint.setColor(COLOR_P2_STROKE);
+        p2StrokePaint.setStyle(Paint.Style.STROKE);
+        p2StrokePaint.setStrokeWidth(2f);
 
         projectilePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        projectilePaint.setColor(0xFFFFEB3B);
         projectilePaint.setStyle(Paint.Style.FILL);
 
-        hpBarBgPaint = new Paint();
-        hpBarBgPaint.setColor(0xFF333333);
-        hpBarBgPaint.setStyle(Paint.Style.FILL);
+        hpBgPaint = new Paint();
+        hpBgPaint.setColor(COLOR_HP_BG);
+        hpBgPaint.setStyle(Paint.Style.FILL);
 
-        hpBarPaint = new Paint();
-        hpBarPaint.setStyle(Paint.Style.FILL);
-
-        arenaPaint = new Paint();
-        arenaPaint.setColor(0xFF1A1A2E);
-        arenaPaint.setStyle(Paint.Style.FILL);
+        hpFillPaint = new Paint();
+        hpFillPaint.setColor(COLOR_HP_FILL);
+        hpFillPaint.setStyle(Paint.Style.FILL);
 
         textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        textPaint.setColor(Color.WHITE);
-        textPaint.setTextSize(36f);
-        textPaint.setTextAlign(Paint.Align.CENTER);
+        textPaint.setColor(COLOR_TEXT);
+        textPaint.setTextSize(28f);
+        textPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
 
-        glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        glowPaint.setStyle(Paint.Style.STROKE);
-        glowPaint.setStrokeWidth(3f);
+        textDimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textDimPaint.setColor(COLOR_TEXT_DIM);
+        textDimPaint.setTextSize(22f);
 
-        hpBarRect = new RectF();
+        textLargePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textLargePaint.setColor(COLOR_TEXT);
+        textLargePaint.setTextSize(52f);
+        textLargePaint.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
+
+        gridPaint = new Paint();
+        gridPaint.setColor(COLOR_GRID);
+        gridPaint.setStrokeWidth(0.5f);
+
+        centerPaint = new Paint();
+        centerPaint.setColor(COLOR_CENTER);
+        centerPaint.setStrokeWidth(1f);
+
+        overlayPaint = new Paint();
+        overlayPaint.setColor(COLOR_OVERLAY);
+        overlayPaint.setStyle(Paint.Style.FILL);
+
+        separatorPaint = new Paint();
+        separatorPaint.setColor(COLOR_CENTER);
+        separatorPaint.setStrokeWidth(2f);
+
+        hpRect = new RectF();
         running = false;
     }
 
@@ -79,10 +126,13 @@ public class GameEngine {
         this.gameState = new GameState(arenaWidth, arenaHeight);
         this.running = true;
 
+        int p1Color = 0xFFFFFFFF;
+        int p2Color = 0xFF4A4A4D;
+
         Player p1 = new Player(arenaWidth * 0.25f, arenaHeight * 0.5f,
-            0xFF448AFF, 0, "Player", arenaWidth, arenaHeight);
+            p1Color, 0, "PLAYER", arenaWidth, arenaHeight);
         Player p2 = new Player(arenaWidth * 0.75f, arenaHeight * 0.5f,
-            0xFFFF4444, 1, "Enemy", arenaWidth, arenaHeight);
+            p2Color, 1, "ENEMY", arenaWidth, arenaHeight);
 
         switch (mode) {
             case PLAYER_VS_AI:
@@ -95,8 +145,8 @@ public class GameEngine {
                 AIController ai2 = new SimpleAI(AIDifficulty.MEDIUM);
                 p1.setAiController(ai1);
                 p2.setAiController(ai2);
-                p1.setName("AI-Hard");
-                p2.setName("AI-Medium");
+                p1.setName("AI — HARD");
+                p2.setName("AI — MEDIUM");
                 ai1.initialize(gameState, 0);
                 ai2.initialize(gameState, 1);
                 break;
@@ -125,44 +175,33 @@ public class GameEngine {
     }
 
     public void render(Canvas canvas) {
-        canvas.drawColor(0xFF1A1A2E);
+        canvas.drawColor(COLOR_BG);
 
         drawArenaGrid(canvas);
 
         Player p1 = gameState.getPlayer1();
         Player p2 = gameState.getPlayer2();
 
-        if (p1 != null) drawPlayer(canvas, p1);
-        if (p2 != null) drawPlayer(canvas, p2);
+        if (p1 != null) drawPlayer(canvas, p1, true);
+        if (p2 != null) drawPlayer(canvas, p2, false);
 
         drawAllProjectiles(canvas);
 
-        if (p1 != null) drawHPBar(canvas, p1, 20, 20, 300);
-        if (p2 != null) drawHPBar(canvas, p2, arenaWidth - 320, 20, 300);
+        float barW = Math.min(280f, arenaWidth * 0.35f);
+        if (p1 != null) drawHPBar(canvas, p1, 24, 24, barW, true);
+        if (p2 != null) drawHPBar(canvas, p2, arenaWidth - barW - 24, 24, barW, false);
 
         drawPlayerNames(canvas);
 
-        switch (gameState.getState()) {
-            case PLAYER1_WIN:
-                drawGameOverText(canvas, "Player 1 Wins!");
-                break;
-            case PLAYER2_WIN:
-                drawGameOverText(canvas, "Player 2 Wins!");
-                break;
-            case DRAW:
-                drawGameOverText(canvas, "Draw!");
-                break;
-            default:
-                break;
+        GameState.State state = gameState.getState();
+        if (state == GameState.State.PLAYER1_WIN || state == GameState.State.PLAYER2_WIN
+            || state == GameState.State.DRAW) {
+            drawGameOverOverlay(canvas, state);
         }
     }
 
     private void drawArenaGrid(Canvas canvas) {
-        Paint gridPaint = new Paint();
-        gridPaint.setColor(0x18FFFFFF);
-        gridPaint.setStrokeWidth(1f);
-
-        float gridSize = 80f;
+        float gridSize = 100f;
         for (float x = 0; x < arenaWidth; x += gridSize) {
             canvas.drawLine(x, 0, x, arenaHeight, gridPaint);
         }
@@ -170,37 +209,41 @@ public class GameEngine {
             canvas.drawLine(0, y, arenaWidth, y, gridPaint);
         }
 
-        Paint centerLinePaint = new Paint();
-        centerLinePaint.setColor(0x30FFFFFF);
-        centerLinePaint.setStrokeWidth(2f);
-        canvas.drawLine(arenaWidth / 2, 0, arenaWidth / 2, arenaHeight, centerLinePaint);
+        canvas.drawLine(arenaWidth / 2, 0, arenaWidth / 2, arenaHeight, centerPaint);
     }
 
-    private void drawPlayer(Canvas canvas, Player player) {
+    private void drawPlayer(Canvas canvas, Player player, boolean isP1) {
         if (!player.isAlive()) return;
 
         float x = player.getX();
         float y = player.getY();
         float r = player.getRadius();
 
-        glowPaint.setColor(player.getColor());
-        glowPaint.setAlpha(80);
-        canvas.drawCircle(x, y, r + 6, glowPaint);
+        if (isP1) {
+            canvas.drawCircle(x, y, r, p1FillPaint);
+            canvas.drawCircle(x, y, r, p1StrokePaint);
+        } else {
+            canvas.drawCircle(x, y, r, p2FillPaint);
+            canvas.drawCircle(x, y, r, p2StrokePaint);
+        }
 
-        canvas.drawCircle(x, y, r, player1Paint.getColor() == player.getColor()
-            ? player1Paint : player2Paint);
-
+        float innerR = r * 0.3f;
         Paint innerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        innerPaint.setColor(0x40FFFFFF);
         innerPaint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(x - r * 0.25f, y - r * 0.25f, r * 0.4f, innerPaint);
+        if (isP1) {
+            innerPaint.setColor(COLOR_P1_STROKE);
+        } else {
+            innerPaint.setColor(COLOR_P2_STROKE);
+        }
+        canvas.drawCircle(x - r * 0.2f, y - r * 0.2f, innerR, innerPaint);
 
         if (player.isAIControlled()) {
-            Paint aiLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            aiLabelPaint.setColor(0xCCFFFFFF);
-            aiLabelPaint.setTextSize(16f);
-            aiLabelPaint.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText("AI", x, y - r - 10, aiLabelPaint);
+            Paint aiPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            aiPaint.setColor(COLOR_TEXT_DIM);
+            aiPaint.setTextSize(14f);
+            aiPaint.setTextAlign(Paint.Align.CENTER);
+            aiPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            canvas.drawText("AI", x, y - r - 12, aiPaint);
         }
     }
 
@@ -209,84 +252,98 @@ public class GameEngine {
         for (Projectile p : projectiles) {
             if (!p.isAlive()) continue;
 
-            Paint pPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            if (p.getOwner() != null) {
-                pPaint.setColor(p.getOwner().getColor());
-            } else {
-                pPaint.setColor(0xFFFFEB3B);
-            }
-            pPaint.setStyle(Paint.Style.FILL);
-            pPaint.setAlpha(200);
+            projectilePaint.setColor(p.getOwner().getPlayerId() == 0
+                ? 0xFFE0E0E0 : 0xFF444444);
+            projectilePaint.setAlpha(240);
 
-            canvas.drawCircle(p.getX(), p.getY(), p.getRadius(), pPaint);
+            float px = p.getX();
+            float py = p.getY();
+            float pr = p.getRadius();
+            canvas.drawCircle(px, py, pr, projectilePaint);
 
-            Paint glowP = new Paint(Paint.ANTI_ALIAS_FLAG);
-            glowP.setColor(pPaint.getColor());
-            glowP.setStyle(Paint.Style.STROKE);
-            glowP.setStrokeWidth(2f);
-            glowP.setAlpha(100);
-            canvas.drawCircle(p.getX(), p.getY(), p.getRadius() + 3, glowP);
+            projectilePaint.setStyle(Paint.Style.STROKE);
+            projectilePaint.setStrokeWidth(1f);
+            projectilePaint.setAlpha(120);
+            canvas.drawCircle(px, py, pr + 2, projectilePaint);
+            projectilePaint.setStyle(Paint.Style.FILL);
         }
     }
 
-    private void drawHPBar(Canvas canvas, Player player, float left, float top, float width) {
-        if (!player.isAlive()) return;
+    private void drawHPBar(Canvas canvas, Player player, float left, float top,
+                           float width, boolean isP1) {
+        float height = 18f;
+        float hpRatio = Math.max(0, player.getHp() / player.getMaxHp());
 
-        float height = 22f;
-        float hpRatio = player.getHp() / player.getMaxHp();
+        hpRect.set(left, top, left + width, top + height);
+        canvas.drawRect(hpRect, hpBgPaint);
 
-        hpBarRect.set(left, top, left + width, top + height);
-        canvas.drawRoundRect(hpBarRect, 6, 6, hpBarBgPaint);
+        float fillW = width * hpRatio;
+        hpRect.set(left, top, left + fillW, top + height);
+        hpFillPaint.setColor(hpRatio > 0.3f ? COLOR_HP_FILL : COLOR_HP_LOW);
+        canvas.drawRect(hpRect, hpFillPaint);
 
-        hpBarRect.set(left + 2, top + 2, left + 2 + (width - 4) * hpRatio, top + height - 2);
-        hpBarPaint.setColor(hpRatio > 0.5f ? 0xFF4CAF50 : (hpRatio > 0.25f ? 0xFFFFC107 : 0xFFF44336));
-        canvas.drawRoundRect(hpBarRect, 4, 4, hpBarPaint);
+        Paint borderP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        borderP.setColor(isP1 ? COLOR_P1_STROKE : COLOR_P2_STROKE);
+        borderP.setStyle(Paint.Style.STROKE);
+        borderP.setStrokeWidth(1.5f);
+        hpRect.set(left, top, left + width, top + height);
+        canvas.drawRect(hpRect, borderP);
 
-        Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        borderPaint.setColor(0x80FFFFFF);
-        borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(1.5f);
-        hpBarRect.set(left, top, left + width, top + height);
-        canvas.drawRoundRect(hpBarRect, 6, 6, borderPaint);
+        Paint hpTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        hpTextPaint.setColor(COLOR_TEXT);
+        hpTextPaint.setTextSize(13f);
+        hpTextPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        hpTextPaint.setTextAlign(Paint.Align.CENTER);
+        String hpLabel = (int) player.getHp() + " / " + (int) player.getMaxHp();
+        canvas.drawText(hpLabel, left + width / 2, top + height + 16, hpTextPaint);
     }
 
     private void drawPlayerNames(Canvas canvas) {
-        Paint namePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        namePaint.setTextSize(22f);
-        namePaint.setTextAlign(Paint.Align.LEFT);
-
         Player p1 = gameState.getPlayer1();
         Player p2 = gameState.getPlayer2();
 
         if (p1 != null) {
-            namePaint.setColor(0xFF448AFF);
-            canvas.drawText(p1.getName(), 20, 60, namePaint);
+            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            p.setColor(COLOR_TEXT);
+            p.setTextSize(20f);
+            p.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
+            canvas.drawText(p1.getName(), 24, 24 + 18 + 30, p);
         }
         if (p2 != null) {
-            namePaint.setColor(0xFFFF4444);
-            namePaint.setTextAlign(Paint.Align.RIGHT);
-            canvas.drawText(p2.getName(), arenaWidth - 20, 60, namePaint);
+            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            p.setColor(COLOR_TEXT);
+            p.setTextSize(20f);
+            p.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
+            p.setTextAlign(Paint.Align.RIGHT);
+            canvas.drawText(p2.getName(), arenaWidth - 24, 24 + 18 + 30, p);
         }
     }
 
-    private void drawGameOverText(Canvas canvas, String text) {
-        Paint overlayPaint = new Paint();
-        overlayPaint.setColor(0x80000000);
-        overlayPaint.setStyle(Paint.Style.FILL);
+    private void drawGameOverOverlay(Canvas canvas, GameState.State state) {
         canvas.drawRect(0, 0, arenaWidth, arenaHeight, overlayPaint);
 
-        Paint gameOverPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        gameOverPaint.setColor(Color.WHITE);
-        gameOverPaint.setTextSize(56f);
-        gameOverPaint.setTextAlign(Paint.Align.CENTER);
-        gameOverPaint.setFakeBoldText(true);
-        canvas.drawText(text, arenaWidth / 2, arenaHeight / 2 - 20, gameOverPaint);
+        String title;
+        switch (state) {
+            case PLAYER1_WIN:
+                title = "PLAYER 1 WINS";
+                break;
+            case PLAYER2_WIN:
+                title = "PLAYER 2 WINS";
+                break;
+            default:
+                title = "DRAW";
+                break;
+        }
 
-        Paint restartPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        restartPaint.setColor(0xCCCCCCCC);
-        restartPaint.setTextSize(28f);
-        restartPaint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText("Tap to restart", arenaWidth / 2, arenaHeight / 2 + 40, restartPaint);
+        float cx = arenaWidth / 2;
+        float cy = arenaHeight / 2;
+
+        canvas.drawLine(cx - 80, cy - 80, cx - 40, cy - 80, separatorPaint);
+        canvas.drawLine(cx + 40, cy - 80, cx + 80, cy - 80, separatorPaint);
+
+        canvas.drawText(title, cx, cy - 12, textLargePaint);
+
+        canvas.drawText("TAP TO RESTART", cx, cy + 48, textDimPaint);
     }
 
     public void handlePlayerInput(int dx, int dy) {

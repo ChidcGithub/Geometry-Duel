@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Geometry Duel</string>
-    <string name="mode_pve">Player vs AI</string>
-    <string name="mode_aivai">AI vs AI (Spectate)</string>
-    <string name="select_mode">Select Mode</string>
 </resources>
