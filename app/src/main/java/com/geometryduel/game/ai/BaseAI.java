@@ -51,6 +51,8 @@ public abstract class BaseAI implements AIController {
             return AIDecision.idle();
         }
 
+        self.setDesiredFacingAngle((float) Math.atan2(enemy.getY() - self.getY(), enemy.getX() - self.getX()));
+
         if (reacting) {
             reactionTimer -= deltaTime;
             if (reactionTimer <= 0) {

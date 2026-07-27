@@ -42,9 +42,17 @@ public class GameView extends View {
     private float dashButtonY;
     private float dashButtonRadius;
 
+    private float ultButtonX;
+    private float ultButtonY;
+    private float ultButtonRadius;
+
     private int movePointerId;
     private int shootPointerId;
+    private int ultPointerId;
     private boolean shootHeld;
+    private boolean ultCharging;
+    private Paint ultProgressPaint;
+    private android.graphics.RectF ultButtonRect;
     private long dashFlashUntilMs;
     private long lastFrameTimeNs;
     private String fatalErrorMessage;
@@ -108,6 +116,14 @@ public class GameView extends View {
 
         movePointerId = INVALID_POINTER_ID;
         shootPointerId = INVALID_POINTER_ID;
+        ultPointerId = INVALID_POINTER_ID;
+        ultCharging = false;
+
+        ultProgressPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        ultProgressPaint.setStyle(Paint.Style.STROKE);
+        ultProgressPaint.setStrokeWidth(5f);
+
+        ultButtonRect = new android.graphics.RectF();
     }
 
     public void setGameMode(GameMode mode) {
@@ -210,6 +226,11 @@ public class GameView extends View {
                             event.getX(i), event.getY(i), shootButtonX, shootButtonY, shootButtonRadius * 1.35f)) {
                             shootPointerId = INVALID_POINTER_ID;
                             shootHeld = false;
+                        } else if (pointerId == ultPointerId && !isInsideCircle(
+                            event.getX(i), event.getY(i), ultButtonX, ultButtonY, ultButtonRadius * 1.6f)) {
+                            ultPointerId = INVALID_POINTER_ID;
+                            ultCharging = false;
+                            gameEngine.handlePlayerUltRelease();
                         }
                     }
                     break;
@@ -269,12 +290,23 @@ public class GameView extends View {
         dashButtonRadius = minSize * 0.075f;
         dashButtonX = width - margin - shootButtonRadius;
         dashButtonY = shootButtonY - shootButtonRadius - dashButtonRadius - minSize * 0.05f;
+
+        ultButtonRadius = minSize * 0.085f;
+        ultButtonX = shootButtonX - shootButtonRadius - ultButtonRadius - minSize * 0.04f;
+        ultButtonY = shootButtonY;
     }
 
     private void handlePointerDown(int pointerId, float x, float y) {
         if (isInsideCircle(x, y, dashButtonX, dashButtonY, dashButtonRadius * 1.25f)) {
             dashFlashUntilMs = SystemClock.uptimeMillis() + 140L;
             gameEngine.handlePlayerDash();
+            return;
+        }
+
+        if (isInsideCircle(x, y, ultButtonX, ultButtonY, ultButtonRadius * 1.3f)) {
+            ultPointerId = pointerId;
+            ultCharging = true;
+            gameEngine.handlePlayerUltStart();
             return;
         }
 
@@ -302,6 +334,12 @@ public class GameView extends View {
         if (pointerId == shootPointerId) {
             shootPointerId = INVALID_POINTER_ID;
             shootHeld = false;
+        }
+
+        if (pointerId == ultPointerId) {
+            ultPointerId = INVALID_POINTER_ID;
+            ultCharging = false;
+            gameEngine.handlePlayerUltRelease();
         }
     }
 
@@ -332,13 +370,19 @@ public class GameView extends View {
     }
 
     private void resetControlState() {
+        boolean wasUltCharging = ultCharging;
         movePointerId = INVALID_POINTER_ID;
         shootPointerId = INVALID_POINTER_ID;
         shootHeld = false;
+        ultPointerId = INVALID_POINTER_ID;
+        ultCharging = false;
         dpadKnobOffsetX = 0f;
         dpadKnobOffsetY = 0f;
         if (gameInitialized) {
             gameEngine.handlePlayerInput(0, 0);
+            if (wasUltCharging) {
+                gameEngine.handlePlayerUltRelease();
+            }
         }
     }
 
@@ -395,8 +439,34 @@ public class GameView extends View {
         canvas.drawCircle(dashButtonX, dashButtonY, dashButtonRadius, controlStrokePaint);
         canvas.drawText("DASH", dashButtonX, dashButtonY + 6f, controlSubLabelPaint);
 
+        float ultProgress = 0f;
+        boolean ultChargingNow = false;
+        boolean ultCharged = false;
+        GameState gs = gameEngine.getGameState();
+        if (gs != null && gs.getPlayer1() != null) {
+            ultChargingNow = gs.getPlayer1().isUltCharging();
+            ultProgress = gs.getPlayer1().getUltChargeProgress();
+            ultCharged = gs.getPlayer1().isUltFullyCharged();
+        }
+
+        canvas.drawCircle(ultButtonX, ultButtonY, ultButtonRadius,
+            ultChargingNow ? controlActivePaint : controlFillPaint);
+        if (ultChargingNow) {
+            ultProgressPaint.setColor(ultCharged ? 0xFFFF3B3B : 0xFF000000);
+            if (ultCharged) {
+                ultProgressPaint.setAlpha(255);
+            } else {
+                ultProgressPaint.setAlpha((int) (120 + 135 * Math.abs(Math.sin(SystemClock.uptimeMillis() * 0.012))));
+            }
+            ultButtonRect.set(ultButtonX - ultButtonRadius, ultButtonY - ultButtonRadius,
+                ultButtonX + ultButtonRadius, ultButtonY + ultButtonRadius);
+            canvas.drawArc(ultButtonRect, -90f, 360f * ultProgress, false, ultProgressPaint);
+        }
+        canvas.drawCircle(ultButtonX, ultButtonY, ultButtonRadius, controlStrokePaint);
+        canvas.drawText("ULT", ultButtonX, ultButtonY + 6f, controlSubLabelPaint);
+
         if (!isGameOver()) {
-            canvas.drawText("Hold left side to move", getWidth() / 2f, getHeight() - 18f, controlSubLabelPaint);
+            canvas.drawText("Move: left  •  Shoot/Dash/Ult: right", getWidth() / 2f, getHeight() - 18f, controlSubLabelPaint);
         }
     }
 

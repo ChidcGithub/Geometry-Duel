@@ -21,9 +21,16 @@ public class Player extends Entity {
     private static final float PROJECTILE_DAMAGE = 12f;
     private static final float SLOW_DURATION = 3.0f;
     private static final float SLOW_MULTIPLIER = 0.42f;
-    private static final float ROTATION_IDLE_RETURN = 7.0f;
-    private static final float ROTATION_SPIN_BASE = 180f;
-    private static final float ROTATION_SPIN_BOOST = 640f;
+    private static final float ANGULAR_TRACK = 12.0f;
+    private static final float MAX_ANG_VEL = 10.0f;
+    private static final float ANG_ACCEL = 8.0f;
+    private static final float ULT_CHARGE_TIME = 3.0f;
+    private static final float ULT_SPEED = 1200f;
+    private static final float ULT_RADIUS = 30f;
+    private static final float ULT_DAMAGE = 80f;
+    private static final float ULT_COOLDOWN = 1.5f;
+    private static final float SHIELD_ARC_SHOOT = 35f;
+    private static final float SHIELD_ARC_ULT = 135f;
 
     private float hp;
     private float maxHp;
@@ -44,9 +51,14 @@ public class Player extends Entity {
     private boolean wantsShoot;
     private boolean wantsDash;
 
-    private float shootTargetX;
-    private float shootTargetY;
     private float rotationDegrees;
+    private float facingAngle;
+    private float angularVelocity;
+    private float desiredFacingAngle;
+    private Shield activeShield;
+    private boolean isUltCharging;
+    private float ultChargeTimer;
+    private float ultCooldownTimer;
 
     private final float arenaWidth;
     private final float arenaHeight;
@@ -66,6 +78,11 @@ public class Player extends Entity {
         this.slowTimer = 0;
         this.isDashing = false;
         this.rotationDegrees = 0f;
+        this.facingAngle = playerId == 0 ? 0f : (float) Math.PI;
+        this.desiredFacingAngle = this.facingAngle;
+        this.isUltCharging = false;
+        this.ultChargeTimer = 0f;
+        this.ultCooldownTimer = 0f;
         this.arenaWidth = arenaWidth;
         this.arenaHeight = arenaHeight;
     }
@@ -100,6 +117,18 @@ public class Player extends Entity {
 
         applyAIInput(deltaTime);
 
+        if (isUltCharging) {
+            ultChargeTimer += deltaTime;
+            if (ultChargeTimer > ULT_CHARGE_TIME) {
+                ultChargeTimer = ULT_CHARGE_TIME;
+            }
+        }
+        if (ultCooldownTimer > 0f) {
+            ultCooldownTimer -= deltaTime;
+        }
+
+        updateFacing(deltaTime);
+
         float moveSpeedMultiplier = getMoveSpeedMultiplier();
         float effectiveMaxSpeed = MAX_SPEED * moveSpeedMultiplier;
 
@@ -129,6 +158,9 @@ public class Player extends Entity {
             p.update(deltaTime);
             if (!p.isAlive()) {
                 it.remove();
+                if (activeShield != null && activeShield.getLinkedProjectile() == p) {
+                    activeShield = null;
+                }
             }
         }
 
@@ -190,31 +222,8 @@ public class Player extends Entity {
     public void shoot() {
         if (!canShoot()) return;
 
-        float targetX, targetY;
-        if (isAIControlled && aiController != null) {
-            AIDecision decision = aiController.getCurrentDecision();
-            if (decision != null) {
-                targetX = decision.getTargetX();
-                targetY = decision.getTargetY();
-            } else {
-                targetX = x + 100;
-                targetY = y;
-            }
-        } else {
-            targetX = shootTargetX;
-            targetY = shootTargetY;
-        }
-
-        float dx = targetX - x;
-        float dy = targetY - y;
-        float dist = (float) Math.sqrt(dx * dx + dy * dy);
-        if (dist > 0) {
-            dx /= dist;
-            dy /= dist;
-        } else {
-            dx = 1;
-            dy = 0;
-        }
+        float dx = (float) Math.cos(facingAngle);
+        float dy = (float) Math.sin(facingAngle);
 
         Projectile projectile = new Projectile(
             x + dx * (radius + 30f), y + dy * (radius + 30f),
@@ -222,6 +231,7 @@ public class Player extends Entity {
             24f, 0xFF00FF00, this, PROJECTILE_DAMAGE
         );
         projectiles.add(projectile);
+        activeShield = new Shield(this, SHIELD_ARC_SHOOT, projectile);
         shootCooldownTimer = SHOOT_COOLDOWN;
     }
 
@@ -250,11 +260,6 @@ public class Player extends Entity {
         dashCooldownTimer = DASH_COOLDOWN;
     }
 
-    public void setShootTarget(float x, float y) {
-        this.shootTargetX = x;
-        this.shootTargetY = y;
-    }
-
     public void takeDamage(float damage) {
         if (!alive) return;
         hp -= damage;
@@ -274,46 +279,67 @@ public class Player extends Entity {
         vy += dirY * force;
     }
 
+    private void updateFacing(float deltaTime) {
+        if (!isAIControlled && (moveDirX != 0 || moveDirY != 0)) {
+            desiredFacingAngle = (float) Math.atan2(moveDirY, moveDirX);
+        }
+
+        float turnMul = isUltCharging ? 0.3f : 1f;
+        float delta = desiredFacingAngle - facingAngle;
+        while (delta > Math.PI) delta -= 2 * Math.PI;
+        while (delta < -Math.PI) delta += 2 * Math.PI;
+
+        float maxVel = MAX_ANG_VEL * turnMul;
+        float targetAngVel = delta * ANGULAR_TRACK;
+        if (targetAngVel > maxVel) targetAngVel = maxVel;
+        if (targetAngVel < -maxVel) targetAngVel = -maxVel;
+
+        float angAlpha = 1f - (float) Math.exp(-ANG_ACCEL * turnMul * deltaTime);
+        angularVelocity += (targetAngVel - angularVelocity) * angAlpha;
+        facingAngle += angularVelocity * deltaTime;
+        while (facingAngle > Math.PI) facingAngle -= 2 * Math.PI;
+        while (facingAngle < -Math.PI) facingAngle += 2 * Math.PI;
+    }
+
+    public void startUltCharge() {
+        if (isUltCharging || ultCooldownTimer > 0f || !alive) return;
+        isUltCharging = true;
+        ultChargeTimer = 0f;
+    }
+
+    public void releaseUltCharge() {
+        if (!isUltCharging) return;
+        isUltCharging = false;
+        boolean full = ultChargeTimer >= ULT_CHARGE_TIME;
+        ultChargeTimer = 0f;
+        if (!full || isDashing) return;
+
+        float dx = (float) Math.cos(facingAngle);
+        float dy = (float) Math.sin(facingAngle);
+        Projectile ult = new Projectile(
+            x + dx * (radius + 30f), y + dy * (radius + 30f),
+            dx * ULT_SPEED, dy * ULT_SPEED,
+            ULT_RADIUS, 0xFFFF3B3B, this, ULT_DAMAGE
+        );
+        ult.setUltimate(true);
+        projectiles.add(ult);
+        activeShield = new Shield(this, SHIELD_ARC_ULT, ult);
+        ultCooldownTimer = ULT_COOLDOWN;
+        shootCooldownTimer = SHOOT_COOLDOWN;
+    }
+
+    public void cancelLinkedProjectile() {
+        if (activeShield != null) {
+            Projectile linked = activeShield.getLinkedProjectile();
+            if (linked != null && linked.isAlive()) {
+                linked.setAlive(false);
+            }
+            activeShield = null;
+        }
+    }
+
     public void updateVisualState(float deltaTime, Player opponent) {
-        if (!alive || opponent == null) {
-            return;
-        }
-
-        float toOpponentX = opponent.getX() - x;
-        float toOpponentY = opponent.getY() - y;
-        float dist = (float) Math.sqrt(toOpponentX * toOpponentX + toOpponentY * toOpponentY);
-
-        if (dist <= 0.001f) {
-            rotationDegrees *= Math.max(0f, 1f - deltaTime * ROTATION_IDLE_RETURN);
-            return;
-        }
-
-        float tangentX = -toOpponentY / dist;
-        float tangentY = toOpponentX / dist;
-        float lateralSpeed = vx * tangentX + vy * tangentY;
-        float speed = (float) Math.sqrt(vx * vx + vy * vy);
-        float normalizedSpeed = Math.min(1f, speed / DASH_SPEED);
-        float normalizedLateral = Math.min(1f, Math.abs(lateralSpeed) / DASH_SPEED);
-
-        if (normalizedSpeed < 0.08f && !isDashing) {
-            rotationDegrees *= Math.max(0f, 1f - deltaTime * ROTATION_IDLE_RETURN);
-            return;
-        }
-
-        float spinDirection = lateralSpeed == 0f ? 0f : Math.signum(lateralSpeed);
-        if (spinDirection == 0f && speed > 0f) {
-            spinDirection = Math.signum(vy == 0f ? vx : vy);
-        }
-
-        float nonlinearSpin = ROTATION_SPIN_BASE
-            + ROTATION_SPIN_BOOST * (float) Math.pow(normalizedSpeed, 1.75f)
-            * (0.35f + (float) Math.pow(Math.max(normalizedLateral, 0.2f), 1.45f));
-
-        if (isDashing) {
-            nonlinearSpin *= 1.25f;
-        }
-
-        rotationDegrees += spinDirection * nonlinearSpin * deltaTime;
+        rotationDegrees = (float) Math.toDegrees(facingAngle);
     }
 
     private float getMoveSpeedMultiplier() {
@@ -348,4 +374,16 @@ public class Player extends Entity {
     public float getRotationDegrees() { return rotationDegrees; }
     public boolean isSlowed() { return slowTimer > 0f; }
     public float getSlowRatio() { return Math.min(1f, slowTimer / SLOW_DURATION); }
+
+    public Shield getActiveShield() { return activeShield; }
+    public float getFacingAngle() { return facingAngle; }
+    public void setDesiredFacingAngle(float angle) { this.desiredFacingAngle = angle; }
+    public boolean isUltCharging() { return isUltCharging; }
+    public float getUltChargeProgress() {
+        return Math.min(1f, ultChargeTimer / ULT_CHARGE_TIME);
+    }
+    public boolean isUltFullyCharged() {
+        return ultChargeTimer >= ULT_CHARGE_TIME;
+    }
+    public boolean isUltOnCooldown() { return ultCooldownTimer > 0f; }
 }

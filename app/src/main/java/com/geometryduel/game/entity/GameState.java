@@ -62,11 +62,21 @@ public class GameState {
 
             Player target = (p.getOwner() == player1) ? player2 : player1;
 
+            Shield shield = target.getActiveShield();
+            if (shield != null && shield.isAlive() && shield.blocks(p)) {
+                addExplosion(p.getX(), p.getY(), 0xFFFFE08A);
+                shield.consume();
+                target.cancelLinkedProjectile();
+                p.setAlive(false);
+                continue;
+            }
+
             if (p.collidesWith(target)) {
                 addExplosion((p.getX() + target.getX()) * 0.5f, (p.getY() + target.getY()) * 0.5f, 0xFFFF5E5E);
                 target.takeDamage(p.getDamage());
                 target.applySlow();
                 target.applyKnockback(p.getDirectionX(), p.getDirectionY(), KNOCKBACK_FORCE);
+                target.cancelLinkedProjectile();
                 p.setAlive(false);
 
                 if (p.getOwner().getAIController() != null) {

@@ -1,6 +1,7 @@
 package com.geometryduel.game;
 
 import android.graphics.Canvas;
+import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -13,6 +14,7 @@ import com.geometryduel.game.entity.ExplosionEffect;
 import com.geometryduel.game.entity.GameState;
 import com.geometryduel.game.entity.Player;
 import com.geometryduel.game.entity.Projectile;
+import com.geometryduel.game.entity.Shield;
 
 import java.util.List;
 
@@ -63,6 +65,9 @@ public class GameEngine {
     private Paint namePaintP2;
     private Paint slowRingPaint;
     private Paint particlePaint;
+    private Paint shieldPaint;
+    private Paint shieldInnerPaint;
+    private Paint aimLinePaint;
 
     private RectF hpRect;
     private RectF reusableRect;
@@ -187,6 +192,20 @@ public class GameEngine {
         particlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         particlePaint.setStyle(Paint.Style.FILL);
 
+        shieldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shieldPaint.setStyle(Paint.Style.STROKE);
+        shieldPaint.setStrokeWidth(4f);
+        shieldPaint.setColor(0xCCFFFFFF);
+
+        shieldInnerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shieldInnerPaint.setStyle(Paint.Style.STROKE);
+        shieldInnerPaint.setStrokeWidth(1.5f);
+        shieldInnerPaint.setColor(0x66FFFFFF);
+
+        aimLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        aimLinePaint.setStyle(Paint.Style.STROKE);
+        aimLinePaint.setStrokeWidth(3f);
+
         hpRect = new RectF();
         reusableRect = new RectF();
         arrowPath = new Path();
@@ -245,10 +264,6 @@ public class GameEngine {
             p2.getAIController().update(deltaTime, gameState);
         }
 
-        if (p1 != null && p2 != null && !p1.isAIControlled()) {
-            p1.setShootTarget(p2.getX(), p2.getY());
-        }
-
         gameState.update(deltaTime);
     }
 
@@ -271,6 +286,9 @@ public class GameEngine {
 
         if (p1 != null) drawPlayer(canvas, p1, true);
         if (p2 != null) drawPlayer(canvas, p2, false);
+
+        drawShields(canvas);
+        drawUltAimLines(canvas);
 
         drawAllProjectiles(canvas);
         drawExplosionEffects(canvas);
@@ -337,26 +355,94 @@ public class GameEngine {
         }
     }
 
+    private void drawShields(Canvas canvas) {
+        Player p1 = gameState.getPlayer1();
+        Player p2 = gameState.getPlayer2();
+        if (p1 != null) drawShield(canvas, p1);
+        if (p2 != null) drawShield(canvas, p2);
+    }
+
+    private void drawShield(Canvas canvas, Player player) {
+        Shield shield = player.getActiveShield();
+        if (shield == null || !shield.isAlive()) return;
+
+        float cx = player.getX();
+        float cy = player.getY();
+        float r = player.getRadius() + Shield.SHIELD_OFFSET;
+        float facingDeg = (float) Math.toDegrees(player.getFacingAngle());
+        float arcDeg = shield.getArcDegrees();
+        float startDeg = facingDeg - arcDeg / 2f;
+
+        reusableRect.set(cx - r, cy - r, cx + r, cy + r);
+        canvas.drawArc(reusableRect, startDeg, arcDeg, false, shieldPaint);
+        float r2 = r - 6f;
+        reusableRect.set(cx - r2, cy - r2, cx + r2, cy + r2);
+        canvas.drawArc(reusableRect, startDeg, arcDeg, false, shieldInnerPaint);
+
+        float a1 = (float) Math.toRadians(startDeg);
+        float a2 = (float) Math.toRadians(startDeg + arcDeg);
+        canvas.drawLine(cx + (float) Math.cos(a1) * (r - 8), cy + (float) Math.sin(a1) * (r - 8),
+            cx + (float) Math.cos(a1) * (r + 8), cy + (float) Math.sin(a1) * (r + 8), shieldPaint);
+        canvas.drawLine(cx + (float) Math.cos(a2) * (r - 8), cy + (float) Math.sin(a2) * (r - 8),
+            cx + (float) Math.cos(a2) * (r + 8), cy + (float) Math.sin(a2) * (r + 8), shieldPaint);
+    }
+
+    private void drawUltAimLines(Canvas canvas) {
+        Player p1 = gameState.getPlayer1();
+        Player p2 = gameState.getPlayer2();
+        if (p1 != null) drawUltAimLine(canvas, p1);
+        if (p2 != null) drawUltAimLine(canvas, p2);
+    }
+
+    private void drawUltAimLine(Canvas canvas, Player player) {
+        if (!player.isUltCharging()) return;
+
+        float x = player.getX();
+        float y = player.getY();
+        float facing = player.getFacingAngle();
+        float dx = (float) Math.cos(facing);
+        float dy = (float) Math.sin(facing);
+
+        float startX = x + dx * (player.getRadius() + 12f);
+        float startY = y + dy * (player.getRadius() + 12f);
+        float endX = x + dx * 900f;
+        float endY = y + dy * 900f;
+
+        if (player.isUltFullyCharged()) {
+            aimLinePaint.setColor(0xFFFF3B3B);
+            aimLinePaint.setAlpha(235);
+            aimLinePaint.setPathEffect(null);
+        } else {
+            float pulse = 0.5f + 0.5f * (float) Math.abs(Math.sin(gameState.getGameTime() * 8f));
+            aimLinePaint.setColor(0xFF000000);
+            aimLinePaint.setAlpha((int) (90 + 150 * pulse));
+            aimLinePaint.setPathEffect(new DashPathEffect(new float[]{18f, 14f}, 0f));
+        }
+        canvas.drawLine(startX, startY, endX, endY, aimLinePaint);
+    }
+
     private void drawAllProjectiles(Canvas canvas) {
         List<Projectile> projectiles = gameState.getProjectiles();
         for (Projectile p : projectiles) {
             if (!p.isAlive()) continue;
 
-            projectilePaint.setColor(p.getOwner().getPlayerId() == 0
-                ? 0xFFE0E0E0 : 0xFF444444);
+            boolean ult = p.isUltimate();
+            int baseColor = ult ? 0xFFFF3B3B
+                : (p.getOwner().getPlayerId() == 0 ? 0xFFE0E0E0 : 0xFF444444);
+            projectilePaint.setColor(baseColor);
             projectilePaint.setAlpha(240);
 
             float px = p.getX();
             float py = p.getY();
-            float pr = p.getRadius() * 2.8f;
+            float pr = p.getRadius() * (ult ? 4.0f : 2.8f);
             float angle = (float) Math.toDegrees(Math.atan2(p.getDirectionY(), p.getDirectionX()));
 
             canvas.save();
             canvas.translate(px, py);
             canvas.rotate(angle);
 
-            projectileStrokePaint.setColor(projectilePaint.getColor());
-            projectileStrokePaint.setStrokeWidth(4f);
+            projectileStrokePaint.setColor(baseColor);
+            projectileStrokePaint.setStrokeWidth(ult ? 7f : 4f);
             canvas.drawLine(-pr * 0.7f, 0, pr * 0.45f, 0, projectileStrokePaint);
             canvas.drawLine(pr * 0.45f, 0, pr * 0.05f, -pr * 0.35f, projectileStrokePaint);
             canvas.drawLine(pr * 0.45f, 0, pr * 0.05f, pr * 0.35f, projectileStrokePaint);
@@ -468,6 +554,20 @@ public class GameEngine {
         Player p1 = gameState.getPlayer1();
         if (p1 != null && !p1.isAIControlled()) {
             p1.triggerDash();
+        }
+    }
+
+    public void handlePlayerUltStart() {
+        Player p1 = gameState.getPlayer1();
+        if (p1 != null && !p1.isAIControlled()) {
+            p1.startUltCharge();
+        }
+    }
+
+    public void handlePlayerUltRelease() {
+        Player p1 = gameState.getPlayer1();
+        if (p1 != null && !p1.isAIControlled()) {
+            p1.releaseUltCharge();
         }
     }
 

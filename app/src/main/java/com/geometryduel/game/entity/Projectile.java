@@ -7,6 +7,7 @@ public class Projectile extends Entity {
     private final float directionX;
     private final float directionY;
     private float lifetime;
+    private boolean ultimate;
     private static final float MAX_LIFETIME = 3.0f;
 
     public Projectile(float x, float y, float vx, float vy, float radius,
@@ -17,6 +18,7 @@ public class Projectile extends Entity {
         this.damage = damage;
         this.owner = owner;
         this.lifetime = MAX_LIFETIME;
+        this.ultimate = false;
 
         float speed = (float) Math.sqrt(vx * vx + vy * vy);
         if (speed > 0f) {
@@ -42,4 +44,6 @@ public class Projectile extends Entity {
     public float getLifetime() { return lifetime; }
     public float getDirectionX() { return directionX; }
     public float getDirectionY() { return directionY; }
+    public boolean isUltimate() { return ultimate; }
+    public void setUltimate(boolean ultimate) { this.ultimate = ultimate; }
 }
