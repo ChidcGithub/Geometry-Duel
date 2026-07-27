@@ -1,73 +1,40 @@
-# Geometry Duel
+# Geometry Duel 几何决斗
 
-A two-player geometric duel game for Android. Two colored circles battle on a 2D arena by shooting projectiles, dodging, and dashing. The game supports two modes: Player vs AI and AI vs AI (spectator mode).
+对 `pama1234.gdx.game.app.duel.pft01`（几何决斗安卓原型版，原作 FAL / 移植 Pama1234）的完整复刻。
+基于 **libGDX**，通过 jadx 反编译逐项提取精确数值后重写，覆盖全部攻击模式、运动轨迹、判定逻辑与特效渲染。
 
-## Modes
+## 攻击模式
 
-- **Player vs AI**: You control the blue circle on the left. The red circle is controlled by the AI. Use the on-screen d-pad and shoot button to fight.
-- **AI vs AI**: Both circles are AI-controlled. Watch two AIs battle each other and compare strategies.
+| 攻击 | 触发 | 机制 | 判定 |
+|------|------|------|------|
+| 短弓（普通攻击） | 按住 Z | 自动瞄准敌人，每 12 帧一箭，箭速 24→8 衰减 | 半径 8 圆形判定，命中击退（冲量 20，±45° 随机）并进入 45 帧受击硬直 |
+| 长弓（致命大招） | 按住 X 蓄力 30 帧后松开 | 手动转瞄（0.6°/帧），射出 5 节箭杆 + 1 箭头（间距 24，速度 64） | 半径 16 圆形判定，命中即击杀 |
+| 传送 | 按住 C 蓄力 30 帧后松开 | 记录进入时位置为锚点，期间全速移动，松开后瞬移回锚点 | 不造成伤害（原作为调试功能，本复刻默认开放） |
 
-## AI Framework
+- 箭-箭相撞：双方碎裂（10 个方块粒子）
+- 击杀：50 个方块粒子 + 屏幕震动 50；击退：震动 +10；长弓放箭/传送：震动 +10
+- 蓄力特效：半径 40 充能环（线宽 8）；蓄满：环状粒子（0.5s）+ 音效；长弓放箭：800 长激光线粒子（2s）
+- 玩家：32×32 旋转方块，速度上限 vx±10/vy±7，摩擦 0.92，边界反弹 -0.5
+- AI：Move/Jab/Kill 三计划状态机，每 10 帧重选，支持闪避与狙杀（教学模式难度 0.02→1.0 递增）
 
-The AI system is designed to be extensible:
+## 操作
 
-| File | Role |
-|------|------|
-| `AIController.java` | Interface all AI implementations must fulfill |
-| `AIDecision.java` | Decision data class (action, target, confidence) |
-| `AIDifficulty.java` | Preset difficulty levels (EASY, MEDIUM, HARD) with tunable parameters |
-| `BaseAI.java` | Abstract base with reaction time simulation, threat detection, and decision intervals |
-| `SimpleAI.java` | Reference implementation: distance-based positioning, projectile dodging, strafe-and-shoot |
+- **桌面**：方向键/WASD 移动，Z 短弓，X 长弓，C 传送，P 暂停，Esc 返回
+- **安卓**：左下虚拟摇杆移动/瞄准，右下 Z/X/C 触控按钮
 
-### Adding a New AI
-
-Implement `AIController` or extend `BaseAI`, then assign it to a player in `GameEngine.initialize()`.
-
-### Difficulty Parameters
-
-| Parameter | EASY | MEDIUM | HARD |
-|-----------|------|--------|------|
-| Reaction time (s) | 0.5 | 0.3 | 0.15 |
-| Decision interval (s) | 1.2 | 0.8 | 0.4 |
-| Aggression | 0.3 | 0.6 | 0.85 |
-| Accuracy | 0.2 | 0.55 | 0.8 |
-
-## Project Structure
+## 模块结构
 
 ```
-app/src/main/java/com/geometryduel/
-├── ui/
-│   ├── MenuActivity.java       Mode selection screen
-│   └── MainActivity.java       Fullscreen game activity
-└── game/
-    ├── GameMode.java            PLAYER_VS_AI / AI_VS_AI enum
-    ├── GameEngine.java          Core engine: update, render, collision
-    ├── GameView.java            SurfaceView game loop with touch controls
-    ├── entity/
-    │   ├── Entity.java          Base class (position, velocity, collision)
-    │   ├── Player.java          Player (movement, shooting, dash, HP)
-    │   ├── Projectile.java      Projectile fired by players
-    │   └── GameState.java       Game state and event management
-    └── ai/
-        ├── AIController.java    AI interface
-        ├── AIDecision.java      Decision data class
-        ├── AIDifficulty.java    Difficulty presets
-        ├── BaseAI.java          Abstract AI base class
-        └── SimpleAI.java        Simple AI implementation
+core/       游戏逻辑与渲染（libGDX 纯 Java）
+android/    安卓启动器与资源（音频/字体/主题）
+desktop/    LWJGL3 桌面启动器（调试用）
 ```
 
-## Build
+## 构建
 
-Open the project in Android Studio and run, or build from command line:
-
+```bash
+./gradlew :android:assembleDebug   # 安卓 APK
+./gradlew :desktop:run             # 桌面运行
 ```
-./gradlew assembleDebug
-```
 
-The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
-
-## Controls
-
-- **Left side**: Virtual d-pad for movement
-- **Right side**: Shoot button (fires toward the enemy)
-- **Tap anywhere on game-over screen**: Restart the match
+推送 main 后由 GitHub Actions 自动构建 APK 与桌面发行包（见 Actions 产物）。
