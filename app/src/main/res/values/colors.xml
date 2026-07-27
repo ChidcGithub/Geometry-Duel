@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#FF6200EE</color>
+    <color name="primary_dark">#FF3700B3</color>
+    <color name="accent">#FF03DAC5</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+    <color name="player_color">#FF448AFF</color>
+    <color name="enemy_color">#FFFF4444</color>
+    <color name="projectile_player">#FF82B1FF</color>
+    <color name="projectile_enemy">#FFFF8A80</color>
+    <color name="arena_bg">#FF1A1A2E</color>
+    <color name="hp_green">#FF4CAF50</color>
+    <color name="hp_red">#FFF44336</color>
+</resources>
