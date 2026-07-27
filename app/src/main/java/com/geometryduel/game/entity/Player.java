@@ -37,6 +37,9 @@ public class Player extends Entity {
     private boolean wantsShoot;
     private boolean wantsDash;
 
+    private float shootTargetX;
+    private float shootTargetY;
+
     private final float arenaWidth;
     private final float arenaHeight;
 
@@ -124,17 +127,9 @@ public class Player extends Entity {
         if (decision == null) return;
 
         switch (decision.getAction()) {
-            case MOVE_LEFT:
-                moveDirX = -1;
-                break;
-            case MOVE_RIGHT:
-                moveDirX = 1;
-                break;
-            case MOVE_UP:
-                moveDirY = -1;
-                break;
-            case MOVE_DOWN:
-                moveDirY = 1;
+            case MOVE:
+                moveDirX = Math.round(decision.getMoveDirX());
+                moveDirY = Math.round(decision.getMoveDirY());
                 break;
             case SHOOT:
                 wantsShoot = true;
@@ -182,8 +177,8 @@ public class Player extends Entity {
                 targetY = y;
             }
         } else {
-            targetX = x + (playerId == 0 ? 100 : -100);
-            targetY = y;
+            targetX = shootTargetX;
+            targetY = shootTargetY;
         }
 
         float dx = targetX - x;
@@ -212,6 +207,27 @@ public class Player extends Entity {
 
     public boolean canDash() {
         return dashCooldownTimer <= 0 && !isDashing;
+    }
+
+    public void triggerDash() {
+        if (!canDash()) return;
+        float dirX = moveDirX != 0 ? moveDirX : (playerId == 0 ? 1 : -1);
+        float dirY = moveDirY;
+        float len = (float) Math.sqrt(dirX * dirX + dirY * dirY);
+        if (len > 0) {
+            dirX /= len;
+            dirY /= len;
+        }
+        vx = dirX * DASH_SPEED;
+        vy = dirY * DASH_SPEED;
+        isDashing = true;
+        dashTimer = DASH_DURATION;
+        dashCooldownTimer = DASH_COOLDOWN;
+    }
+
+    public void setShootTarget(float x, float y) {
+        this.shootTargetX = x;
+        this.shootTargetY = y;
     }
 
     public void takeDamage(float damage) {

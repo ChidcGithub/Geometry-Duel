@@ -141,11 +141,13 @@ public abstract class BaseAI implements AIController {
         return false;
     }
 
+    private static final float PREDICTION_TIME = 0.3f;
+
     protected float predictEnemyX() {
-        return enemy.getX();
+        return enemy.getX() + enemy.getVx() * PREDICTION_TIME;
     }
 
     protected float predictEnemyY() {
-        return enemy.getY();
+        return enemy.getY() + enemy.getVy() * PREDICTION_TIME;
     }
 }

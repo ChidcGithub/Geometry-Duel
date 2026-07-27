@@ -3,10 +3,7 @@ package com.geometryduel.game.ai;
 public class AIDecision {
 
     public enum Action {
-        MOVE_LEFT,
-        MOVE_RIGHT,
-        MOVE_UP,
-        MOVE_DOWN,
+        MOVE,
         SHOOT,
         IDLE,
         DASH
@@ -17,11 +14,26 @@ public class AIDecision {
     private final float targetY;
     private final float confidence;
 
+    private final float moveDirX;
+    private final float moveDirY;
+
     public AIDecision(Action action, float targetX, float targetY, float confidence) {
         this.action = action;
         this.targetX = targetX;
         this.targetY = targetY;
         this.confidence = Math.max(0, Math.min(1, confidence));
+        this.moveDirX = 0;
+        this.moveDirY = 0;
+    }
+
+    private AIDecision(Action action, float targetX, float targetY, float confidence,
+                       float moveDirX, float moveDirY) {
+        this.action = action;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.confidence = Math.max(0, Math.min(1, confidence));
+        this.moveDirX = moveDirX;
+        this.moveDirY = moveDirY;
     }
 
     public static AIDecision idle() {
@@ -29,13 +41,12 @@ public class AIDecision {
     }
 
     public static AIDecision move(float dx, float dy) {
-        Action action;
-        if (Math.abs(dx) > Math.abs(dy)) {
-            action = dx > 0 ? Action.MOVE_RIGHT : Action.MOVE_LEFT;
-        } else {
-            action = dy > 0 ? Action.MOVE_DOWN : Action.MOVE_UP;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len > 0) {
+            return new AIDecision(Action.MOVE, 0, 0,
+                Math.min(1.0f, len), dx / len, dy / len);
         }
-        return new AIDecision(action, dx, dy, Math.min(1.0f, Math.abs(dx) + Math.abs(dy)));
+        return new AIDecision(Action.MOVE, 0, 0, 0, 0, 0);
     }
 
     public static AIDecision shoot(float targetX, float targetY, float accuracy) {
@@ -50,10 +61,11 @@ public class AIDecision {
     public float getTargetX() { return targetX; }
     public float getTargetY() { return targetY; }
     public float getConfidence() { return confidence; }
+    public float getMoveDirX() { return moveDirX; }
+    public float getMoveDirY() { return moveDirY; }
 
     public boolean isMovingAction() {
-        return action == Action.MOVE_LEFT || action == Action.MOVE_RIGHT
-            || action == Action.MOVE_UP || action == Action.MOVE_DOWN;
+        return action == Action.MOVE;
     }
 
     @Override

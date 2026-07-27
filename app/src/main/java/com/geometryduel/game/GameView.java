@@ -29,6 +29,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private boolean upPressed;
     private boolean downPressed;
     private boolean shootPressed;
+    private boolean dashPressed;
 
     private ControlsCallback controlsCallback;
 
@@ -37,6 +38,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private float dpadCenterY;
     private float shootCenterX;
     private float shootCenterY;
+    private float dashCenterX;
+    private float dashCenterY;
 
     private final Paint ctrlFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ctrlStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -83,6 +86,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         dpadCenterY = 600f;
         shootCenterX = 900f;
         shootCenterY = 600f;
+        dashCenterX = 900f;
+        dashCenterY = 480f;
     }
 
     public void setGameMode(GameMode mode) {
@@ -160,14 +165,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         if (gameEngine.isRunning()) {
             processPlayerInput();
             gameEngine.update(deltaTime);
-
-            if (gameEngine.getGameState().getState() == GameState.State.PLAYER1_WIN
-                || gameEngine.getGameState().getState() == GameState.State.PLAYER2_WIN
-                || gameEngine.getGameState().getState() == GameState.State.DRAW) {
-                if (controlsCallback != null) {
-                    controlsCallback.onGameOver();
-                }
-            }
         }
     }
 
@@ -184,7 +181,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
         if (shootPressed) {
             gameEngine.handlePlayerShoot();
-            shootPressed = false;
         }
     }
 
@@ -218,6 +214,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         shootCenterX = w * 0.87f;
         shootCenterY = h * 0.78f;
 
+        dashCenterX = w * 0.87f;
+        dashCenterY = h * 0.60f;
+
         drawDpadButton(canvas, dpadCenterX - buttonSize - gap, dpadCenterY, leftPressed, "L");
         drawDpadButton(canvas, dpadCenterX + buttonSize + gap, dpadCenterY, rightPressed, "R");
         drawDpadButton(canvas, dpadCenterX, dpadCenterY - buttonSize - gap, upPressed, "U");
@@ -228,25 +227,29 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             shootCenterX + shootSize / 2, shootCenterY + shootSize / 2);
         canvas.drawRect(ctrlRect, shootPressed ? ctrlActivePaint : ctrlFillPaint);
         canvas.drawRect(ctrlRect, ctrlStrokePaint);
+        ctrlTextPaint.setTextSize(buttonSize * 0.28f);
+        canvas.drawText("FIRE", shootCenterX, shootCenterY + ctrlTextPaint.getTextSize() / 3, ctrlTextPaint);
 
-        Paint shootTextP = new Paint(ctrlTextPaint);
-        shootTextP.setTextSize(buttonSize * 0.28f);
-        shootTextP.setColor(0x80FFFFFF);
-        canvas.drawText("FIRE", shootCenterX, shootCenterY + shootTextP.getTextSize() / 3, shootTextP);
+        float dashSize = buttonSize * 1.1f;
+        ctrlRect.set(dashCenterX - dashSize / 2, dashCenterY - dashSize / 2,
+            dashCenterX + dashSize / 2, dashCenterY + dashSize / 2);
+        canvas.drawRect(ctrlRect, dashPressed ? ctrlActivePaint : ctrlFillPaint);
+        canvas.drawRect(ctrlRect, ctrlStrokePaint);
+        ctrlTextPaint.setTextSize(buttonSize * 0.24f);
+        canvas.drawText("DASH", dashCenterX, dashCenterY + ctrlTextPaint.getTextSize() / 3, ctrlTextPaint);
     }
 
     private void drawDpadButton(Canvas canvas, float cx, float cy, boolean active, String label) {
         float half = buttonSize / 2;
         ctrlRect.set(cx - half, cy - half, cx + half, cy + half);
 
-        Paint fill = active ? ctrlActivePaint : ctrlFillPaint;
-        canvas.drawRect(ctrlRect, fill);
+        canvas.drawRect(ctrlRect, active ? ctrlActivePaint : ctrlFillPaint);
         canvas.drawRect(ctrlRect, ctrlStrokePaint);
 
-        Paint labelP = new Paint(ctrlTextPaint);
-        labelP.setTextSize(buttonSize * 0.35f);
-        labelP.setColor(active ? 0xFFCCCCCC : 0x60FFFFFF);
-        canvas.drawText(label, cx, cy + labelP.getTextSize() / 3, labelP);
+        ctrlTextPaint.setTextSize(buttonSize * 0.35f);
+        float color = active ? 0xFFCCCCCC : 0x60FFFFFF;
+        ctrlTextPaint.setColor((int) color);
+        canvas.drawText(label, cx, cy + ctrlTextPaint.getTextSize() / 3, ctrlTextPaint);
     }
 
     @Override
@@ -263,47 +266,45 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         float downCY = dpadCenterY + buttonSize + gap;
 
         float shootHalf = buttonSize * 0.7f;
+        float dashHalf = buttonSize * 0.55f;
 
         boolean down = event.getAction() == MotionEvent.ACTION_DOWN
             || event.getAction() == MotionEvent.ACTION_MOVE;
         boolean up = event.getAction() == MotionEvent.ACTION_UP
             || event.getAction() == MotionEvent.ACTION_CANCEL;
+        boolean pointerUp = event.getAction() == MotionEvent.ACTION_POINTER_UP;
 
-        if (up) {
+        if (up || pointerUp) {
             leftPressed = false;
             rightPressed = false;
             upPressed = false;
             downPressed = false;
             shootPressed = false;
+            dashPressed = false;
             return true;
         }
 
-        if (Math.abs(x - leftCX) < btnHalf + 10 && Math.abs(y - dpadCenterY) < btnHalf + 10) {
-            leftPressed = down;
-            rightPressed = false;
-            upPressed = false;
-            downPressed = false;
-        } else if (Math.abs(x - rightCX) < btnHalf + 10 && Math.abs(y - dpadCenterY) < btnHalf + 10) {
-            rightPressed = down;
-            leftPressed = false;
-            upPressed = false;
-            downPressed = false;
-        } else if (Math.abs(y - upCY) < btnHalf + 10 && Math.abs(x - dpadCenterX) < btnHalf + 10) {
-            upPressed = down;
-            downPressed = false;
-            leftPressed = false;
-            rightPressed = false;
-        } else if (Math.abs(y - downCY) < btnHalf + 10 && Math.abs(x - dpadCenterX) < btnHalf + 10) {
-            downPressed = down;
-            upPressed = false;
-            leftPressed = false;
-            rightPressed = false;
+        boolean inLeft = Math.abs(x - leftCX) < btnHalf + 10 && Math.abs(y - dpadCenterY) < btnHalf + 10;
+        boolean inRight = Math.abs(x - rightCX) < btnHalf + 10 && Math.abs(y - dpadCenterY) < btnHalf + 10;
+        boolean inUp = Math.abs(y - upCY) < btnHalf + 10 && Math.abs(x - dpadCenterX) < btnHalf + 10;
+        boolean inDown = Math.abs(y - downCY) < btnHalf + 10 && Math.abs(x - dpadCenterX) < btnHalf + 10;
+        boolean inShoot = Math.abs(x - shootCenterX) < shootHalf + 15 && Math.abs(y - shootCenterY) < shootHalf + 15;
+        boolean inDash = Math.abs(x - dashCenterX) < dashHalf + 15 && Math.abs(y - dashCenterY) < dashHalf + 15;
+
+        if (inLeft || inRight || inUp || inDown) {
+            leftPressed = inLeft && down;
+            rightPressed = inRight && down;
+            upPressed = inUp && down;
+            downPressed = inDown && down;
         }
 
-        if (Math.abs(x - shootCenterX) < shootHalf + 15 && Math.abs(y - shootCenterY) < shootHalf + 15) {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                shootPressed = true;
-            }
+        if (inShoot) {
+            shootPressed = down;
+        }
+
+        if (inDash && event.getAction() == MotionEvent.ACTION_DOWN) {
+            dashPressed = true;
+            gameEngine.handlePlayerDash();
         }
 
         if (gameEngine.getGameState().getState() == GameState.State.PLAYER1_WIN

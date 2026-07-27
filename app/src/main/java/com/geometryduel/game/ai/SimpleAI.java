@@ -5,6 +5,7 @@ import com.geometryduel.game.entity.Player;
 import com.geometryduel.game.entity.Projectile;
 
 import java.util.List;
+import java.util.Random;
 
 public class SimpleAI extends BaseAI {
 
@@ -15,6 +16,7 @@ public class SimpleAI extends BaseAI {
 
     private float shootCooldown;
     private static final float SHOOT_COOLDOWN_BASE = 0.6f;
+    private final Random random = new Random();
 
     public SimpleAI(AIDifficulty difficulty) {
         super(difficulty);
@@ -104,6 +106,19 @@ public class SimpleAI extends BaseAI {
 
     private AIDecision aimAndShoot(GameState gameState) {
         return AIDecision.shoot(predictEnemyX(), predictEnemyY(), difficulty.getAccuracy());
+    }
+
+    private float applySpread(float val) {
+        float inaccuracy = 1.0f - difficulty.getAccuracy();
+        return val + (random.nextFloat() * 2 - 1) * inaccuracy * 80f;
+    }
+
+    private float predictEnemyX() {
+        return super.predictEnemyX() + (random.nextFloat() * 2 - 1) * (1.0f - difficulty.getAccuracy()) * 40f;
+    }
+
+    private float predictEnemyY() {
+        return super.predictEnemyY() + (random.nextFloat() * 2 - 1) * (1.0f - difficulty.getAccuracy()) * 40f;
     }
 
     private AIDecision maintainDistance(GameState gameState, float angle, float dist) {

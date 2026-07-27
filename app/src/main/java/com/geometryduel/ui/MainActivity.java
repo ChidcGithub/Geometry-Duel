@@ -8,7 +8,7 @@ import android.widget.FrameLayout;
 import com.geometryduel.game.GameMode;
 import com.geometryduel.game.GameView;
 
-public class MainActivity extends Activity implements GameView.ControlsCallback {
+public class MainActivity extends Activity {
 
     private GameView gameView;
     private GameMode gameMode;
@@ -22,7 +22,6 @@ public class MainActivity extends Activity implements GameView.ControlsCallback 
 
         gameView = new GameView(this);
         gameView.setGameMode(gameMode);
-        gameView.setControlsCallback(this);
 
         setContentView(gameView,
             new FrameLayout.LayoutParams(
@@ -30,9 +29,6 @@ public class MainActivity extends Activity implements GameView.ControlsCallback 
                 FrameLayout.LayoutParams.MATCH_PARENT
             ));
     }
-
-    @Override
-    public void onGameOver() {}
 
     @Override
     protected void onResume() {
