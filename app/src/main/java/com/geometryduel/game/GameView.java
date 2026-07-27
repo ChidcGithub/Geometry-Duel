@@ -38,11 +38,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private float shootCenterX;
     private float shootCenterY;
 
-    private final Paint ctrlFillPaint;
-    private final Paint ctrlStrokePaint;
-    private final Paint ctrlActivePaint;
-    private final Paint ctrlTextPaint;
-    private final RectF ctrlRect;
+    private final Paint ctrlFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint ctrlStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint ctrlActivePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint ctrlTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF ctrlRect = new RectF();
 
     public interface ControlsCallback {
         void onGameOver();
@@ -63,26 +63,20 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         holder.addCallback(this);
         gameEngine = new GameEngine();
 
-        ctrlFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         ctrlFillPaint.setColor(0x08FFFFFF);
         ctrlFillPaint.setStyle(Paint.Style.FILL);
 
-        ctrlStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         ctrlStrokePaint.setColor(0x40FFFFFF);
         ctrlStrokePaint.setStyle(Paint.Style.STROKE);
         ctrlStrokePaint.setStrokeWidth(1.5f);
 
-        ctrlActivePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         ctrlActivePaint.setColor(0x20FFFFFF);
         ctrlActivePaint.setStyle(Paint.Style.FILL);
 
-        ctrlTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         ctrlTextPaint.setColor(0x80FFFFFF);
         ctrlTextPaint.setTextSize(13f);
         ctrlTextPaint.setTextAlign(Paint.Align.CENTER);
         ctrlTextPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-
-        ctrlRect = new RectF();
 
         buttonSize = 80f;
         dpadCenterX = 120f;

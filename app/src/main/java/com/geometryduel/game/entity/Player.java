@@ -236,6 +236,7 @@ public class Player extends Entity {
     public float getMaxHp() { return maxHp; }
     public int getPlayerId() { return playerId; }
     public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
     public boolean isAIControlled() { return isAIControlled; }
     public AIController getAiController() { return aiController; }
 
