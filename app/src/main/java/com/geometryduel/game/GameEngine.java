@@ -191,6 +191,9 @@ public class GameEngine {
         Player p2 = new Player(arenaWidth * 0.75f, arenaHeight * 0.5f,
             p2Color, 1, "ENEMY", arenaWidth, arenaHeight);
 
+        gameState.setPlayer1(p1);
+        gameState.setPlayer2(p2);
+
         switch (mode) {
             case PLAYER_VS_AI:
                 AIController enemyAI = new SimpleAI(AIDifficulty.MEDIUM);
@@ -202,15 +205,12 @@ public class GameEngine {
                 AIController ai2 = new SimpleAI(AIDifficulty.MEDIUM);
                 p1.setAiController(ai1);
                 p2.setAiController(ai2);
-                p1.setName("AI — HARD");
-                p2.setName("AI — MEDIUM");
+                p1.setName("AI - HARD");
+                p2.setName("AI - MEDIUM");
                 ai1.initialize(gameState, 0);
                 ai2.initialize(gameState, 1);
                 break;
         }
-
-        gameState.setPlayer1(p1);
-        gameState.setPlayer2(p2);
 
         gameState.start();
     }

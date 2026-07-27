@@ -15,6 +15,7 @@ import java.io.StringWriter;
 public class MainActivity extends Activity {
 
     private GameView gameView;
+    private boolean fatalErrorShown;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,7 +36,11 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showError(String msg) {
+    public void showFatalError(String msg) {
+        if (fatalErrorShown || isFinishing()) {
+            return;
+        }
+        fatalErrorShown = true;
         new AlertDialog.Builder(this)
             .setTitle("Crash")
             .setMessage(msg)
@@ -46,6 +51,10 @@ public class MainActivity extends Activity {
             })
             .setNegativeButton("Close", (d, w) -> finish())
             .show();
+    }
+
+    private void showError(String msg) {
+        showFatalError(msg);
     }
 
     @Override
