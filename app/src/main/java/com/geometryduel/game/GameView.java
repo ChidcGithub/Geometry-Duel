@@ -15,7 +15,9 @@ public class GameView extends View implements Runnable {
 
     private Thread gameThread;
     private volatile boolean running;
-    private boolean initialized;
+    private volatile boolean initialized;
+    private volatile int viewWidth;
+    private volatile int viewHeight;
     private GameEngine gameEngine;
     private GameMode gameMode;
 
@@ -23,12 +25,12 @@ public class GameView extends View implements Runnable {
     private static final float TARGET_FPS = 60f;
     private static final float FRAME_TIME = 1_000_000_000f / TARGET_FPS;
 
-    private boolean leftPressed;
-    private boolean rightPressed;
-    private boolean upPressed;
-    private boolean downPressed;
-    private boolean shootPressed;
-    private boolean dashPressed;
+    private volatile boolean leftPressed;
+    private volatile boolean rightPressed;
+    private volatile boolean upPressed;
+    private volatile boolean downPressed;
+    private volatile boolean shootPressed;
+    private volatile boolean dashPressed;
 
     private float buttonSize;
     private float dpadCenterX;
@@ -57,6 +59,8 @@ public class GameView extends View implements Runnable {
     private void init(Context context) {
         gameEngine = new GameEngine();
         initialized = false;
+        viewWidth = 0;
+        viewHeight = 0;
 
         ctrlFillPaint.setColor(0x08FFFFFF);
         ctrlFillPaint.setStyle(Paint.Style.FILL);
@@ -94,35 +98,37 @@ public class GameView extends View implements Runnable {
 
     @Override
     protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
         stopGameLoop();
+        super.onDetachedFromWindow();
     }
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        if (!initialized && w > 0 && h > 0) {
+        viewWidth = w;
+        viewHeight = h;
+        if (!initialized && w > 0 && h > 0 && gameMode != null) {
             gameEngine.initialize(gameMode, w, h);
             initialized = true;
         }
     }
 
-    private void startGameLoop() {
+    private synchronized void startGameLoop() {
         if (gameThread != null) return;
         running = true;
-        gameThread = new Thread(this);
+        gameThread = new Thread(this, "GameThread");
         gameThread.start();
     }
 
-    private void stopGameLoop() {
+    private synchronized void stopGameLoop() {
         running = false;
-        try {
-            if (gameThread != null) {
+        if (gameThread != null) {
+            try {
                 gameThread.join(500);
-                gameThread = null;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            gameThread = null;
         }
     }
 
@@ -137,12 +143,15 @@ public class GameView extends View implements Runnable {
 
             if (deltaTime > 0.1f) deltaTime = 0.1f;
 
-            if (!initialized && getWidth() > 0 && getHeight() > 0) {
-                gameEngine.initialize(gameMode, getWidth(), getHeight());
+            if (!initialized && viewWidth > 0 && viewHeight > 0 && gameMode != null) {
+                gameEngine.initialize(gameMode, viewWidth, viewHeight);
                 initialized = true;
             }
 
-            updateGame(deltaTime);
+            try {
+                updateGame(deltaTime);
+            } catch (Exception ignored) {}
+
             postInvalidate();
 
             long elapsed = System.nanoTime() - now;
@@ -151,8 +160,8 @@ public class GameView extends View implements Runnable {
             if (sleepNs > 0) {
                 try {
                     long sleepMs = sleepNs / 1_000_000;
-                    int sleepExtraNs = (int) (sleepNs % 1_000_000);
-                    Thread.sleep(sleepMs, sleepExtraNs);
+                    int extraNs = (int) (sleepNs % 1_000_000);
+                    Thread.sleep(sleepMs, extraNs);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -162,25 +171,20 @@ public class GameView extends View implements Runnable {
     }
 
     private void updateGame(float deltaTime) {
-        try {
-            if (gameEngine.isRunning()) {
-                processPlayerInput();
-                gameEngine.update(deltaTime);
-            }
-        } catch (Exception ignored) {}
+        if (gameEngine.isRunning()) {
+            processPlayerInput();
+            gameEngine.update(deltaTime);
+        }
     }
 
     private void processPlayerInput() {
         int dx = 0;
         int dy = 0;
-
         if (leftPressed) dx--;
         if (rightPressed) dx++;
         if (upPressed) dy--;
         if (downPressed) dy++;
-
         gameEngine.handlePlayerInput(dx, dy);
-
         if (shootPressed) {
             gameEngine.handlePlayerShoot();
         }
@@ -190,14 +194,14 @@ public class GameView extends View implements Runnable {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         gameEngine.render(canvas);
-        if (gameEngine.getMode() == GameMode.PLAYER_VS_AI) {
+        if (gameMode == GameMode.PLAYER_VS_AI) {
             drawControls(canvas);
         }
     }
 
     private void drawControls(Canvas canvas) {
-        float w = getWidth();
-        float h = getHeight();
+        float w = viewWidth;
+        float h = viewHeight;
         if (w <= 0 || h <= 0) return;
 
         buttonSize = Math.min(w, h) * 0.12f;
@@ -205,10 +209,8 @@ public class GameView extends View implements Runnable {
 
         dpadCenterX = w * 0.13f;
         dpadCenterY = h * 0.78f;
-
         shootCenterX = w * 0.87f;
         shootCenterY = h * 0.78f;
-
         dashCenterX = w * 0.87f;
         dashCenterY = h * 0.60f;
 
@@ -237,13 +239,10 @@ public class GameView extends View implements Runnable {
     private void drawDpadButton(Canvas canvas, float cx, float cy, boolean active, String label) {
         float half = buttonSize / 2;
         ctrlRect.set(cx - half, cy - half, cx + half, cy + half);
-
         canvas.drawRect(ctrlRect, active ? ctrlActivePaint : ctrlFillPaint);
         canvas.drawRect(ctrlRect, ctrlStrokePaint);
-
         ctrlTextPaint.setTextSize(buttonSize * 0.35f);
-        float color = active ? 0xFFCCCCCC : 0x60FFFFFF;
-        ctrlTextPaint.setColor((int) color);
+        ctrlTextPaint.setColor(active ? 0xFFCCCCCC : 0x60FFFFFF);
         canvas.drawText(label, cx, cy + ctrlTextPaint.getTextSize() / 3, ctrlTextPaint);
     }
 
@@ -254,22 +253,20 @@ public class GameView extends View implements Runnable {
 
         float btnHalf = buttonSize / 2;
         float gap = buttonSize * 0.15f;
-
         float leftCX = dpadCenterX - buttonSize - gap;
         float rightCX = dpadCenterX + buttonSize + gap;
         float upCY = dpadCenterY - buttonSize - gap;
         float downCY = dpadCenterY + buttonSize + gap;
-
         float shootHalf = buttonSize * 0.7f;
         float dashHalf = buttonSize * 0.55f;
 
         boolean down = event.getAction() == MotionEvent.ACTION_DOWN
             || event.getAction() == MotionEvent.ACTION_MOVE;
-        boolean up = event.getAction() == MotionEvent.ACTION_UP
-            || event.getAction() == MotionEvent.ACTION_CANCEL;
-        boolean pointerUp = event.getAction() == MotionEvent.ACTION_POINTER_UP;
+        boolean end = event.getAction() == MotionEvent.ACTION_UP
+            || event.getAction() == MotionEvent.ACTION_CANCEL
+            || event.getAction() == MotionEvent.ACTION_POINTER_UP;
 
-        if (up || pointerUp) {
+        if (end) {
             leftPressed = false;
             rightPressed = false;
             upPressed = false;
@@ -292,23 +289,16 @@ public class GameView extends View implements Runnable {
             upPressed = inUp && down;
             downPressed = inDown && down;
         }
-
         if (inShoot) {
             shootPressed = down;
         }
-
         if (inDash && event.getAction() == MotionEvent.ACTION_DOWN) {
             dashPressed = true;
             gameEngine.handlePlayerDash();
         }
 
-        GameState.State state = null;
-        try {
-            state = gameEngine.getGameState().getState();
-        } catch (Exception ignored) {}
-
-        if (state == GameState.State.PLAYER1_WIN
-            || state == GameState.State.PLAYER2_WIN
+        GameState.State state = gameEngine.getGameState().getState();
+        if (state == GameState.State.PLAYER1_WIN || state == GameState.State.PLAYER2_WIN
             || state == GameState.State.DRAW) {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 gameEngine.restart();
@@ -318,9 +308,7 @@ public class GameView extends View implements Runnable {
         return true;
     }
 
-    public GameEngine getGameEngine() {
-        return gameEngine;
-    }
+    public GameEngine getGameEngine() { return gameEngine; }
 
     public void stop() {
         stopGameLoop();
