@@ -3,6 +3,7 @@ package com.geometryduel.game;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
@@ -17,6 +18,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private SurfaceHolder holder;
     private Thread gameThread;
     private volatile boolean running;
+    private boolean initialized;
     private GameEngine gameEngine;
     private GameMode gameMode;
 
@@ -30,8 +32,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private boolean downPressed;
     private boolean shootPressed;
     private boolean dashPressed;
-
-    private ControlsCallback controlsCallback;
 
     private float buttonSize;
     private float dpadCenterX;
@@ -47,10 +47,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private final Paint ctrlTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF ctrlRect = new RectF();
 
-    public interface ControlsCallback {
-        void onGameOver();
-    }
-
     public GameView(Context context) {
         super(context);
         init(context);
@@ -64,7 +60,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private void init(Context context) {
         holder = getHolder();
         holder.addCallback(this);
+        holder.setFormat(PixelFormat.OPAQUE);
         gameEngine = new GameEngine();
+        initialized = false;
 
         ctrlFillPaint.setColor(0x08FFFFFF);
         ctrlFillPaint.setStyle(Paint.Style.FILL);
@@ -94,28 +92,31 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         this.gameMode = mode;
     }
 
-    public void setControlsCallback(ControlsCallback callback) {
-        this.controlsCallback = callback;
-    }
-
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        if (!initialized && getWidth() > 0 && getHeight() > 0) {
+            gameEngine.initialize(gameMode, getWidth(), getHeight());
+            initialized = true;
+        }
         startGameLoop();
     }
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        gameEngine.initialize(gameMode, width, height);
+        if (!initialized && width > 0 && height > 0) {
+            gameEngine.initialize(gameMode, width, height);
+            initialized = true;
+        }
     }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         stopGameLoop();
+        initialized = false;
     }
 
     private void startGameLoop() {
         if (gameThread != null) return;
-
         running = true;
         gameThread = new Thread(this);
         gameThread.start();
@@ -162,10 +163,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     }
 
     private void updateGame(float deltaTime) {
-        if (gameEngine.isRunning()) {
-            processPlayerInput();
-            gameEngine.update(deltaTime);
-        }
+        try {
+            if (gameEngine.isRunning()) {
+                processPlayerInput();
+                gameEngine.update(deltaTime);
+            }
+        } catch (Exception ignored) {}
     }
 
     private void processPlayerInput() {
@@ -194,9 +197,12 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
                     drawControls(canvas);
                 }
             }
+        } catch (Exception ignored) {
         } finally {
             if (canvas != null) {
-                holder.unlockCanvasAndPost(canvas);
+                try {
+                    holder.unlockCanvasAndPost(canvas);
+                } catch (Exception ignored) {}
             }
         }
     }
@@ -204,6 +210,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private void drawControls(Canvas canvas) {
         float w = getWidth();
         float h = getHeight();
+        if (w <= 0 || h <= 0) return;
 
         buttonSize = Math.min(w, h) * 0.12f;
         float gap = buttonSize * 0.15f;
@@ -307,9 +314,14 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             gameEngine.handlePlayerDash();
         }
 
-        if (gameEngine.getGameState().getState() == GameState.State.PLAYER1_WIN
-            || gameEngine.getGameState().getState() == GameState.State.PLAYER2_WIN
-            || gameEngine.getGameState().getState() == GameState.State.DRAW) {
+        GameState.State state = null;
+        try {
+            state = gameEngine.getGameState().getState();
+        } catch (Exception ignored) {}
+
+        if (state == GameState.State.PLAYER1_WIN
+            || state == GameState.State.PLAYER2_WIN
+            || state == GameState.State.DRAW) {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 gameEngine.restart();
             }
