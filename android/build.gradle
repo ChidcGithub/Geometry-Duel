@@ -35,7 +35,43 @@ android {
     }
 }
 
+configurations {
+    natives
+}
+
 dependencies {
     implementation project(':core')
     implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
+    // libgdx.so 各 ABI 原生库（jar 形式发布，需解压进 jniLibs，否则 GdxNativesLoader 启动即崩溃）
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
+    natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86_64"
+}
+
+def extractedNativesDir = layout.buildDirectory.dir("extracted-natives")
+
+tasks.register("extractNatives", Copy) {
+    def abis = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
+    abis.each { abi ->
+        def jar = configurations.natives.files.find { it.name.endsWith("natives-" + abi + ".jar") }
+        if (jar != null) {
+            from(zipTree(jar)) {
+                include "**/*.so"
+                into abi
+                eachFile { it.path = it.name } // 扁平化为 <abi>/libgdx.so
+            }
+        }
+    }
+    into extractedNativesDir
+}
+
+sourceSets {
+    main {
+        jniLibs.srcDir(layout.buildDirectory.dir("extracted-natives"))
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("extractNatives")
 }

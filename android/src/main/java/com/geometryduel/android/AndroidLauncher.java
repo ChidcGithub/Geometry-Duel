@@ -9,6 +9,7 @@ import com.geometryduel.GeometryDuelGame;
 public class AndroidLauncher extends AndroidApplication {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        CrashHandler.install(this);
         super.onCreate(savedInstanceState);
         AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
         config.useAccelerometer = false;
