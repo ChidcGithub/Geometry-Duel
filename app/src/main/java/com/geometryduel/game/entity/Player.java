@@ -14,9 +14,10 @@ public class Player extends Entity {
     private static final float DASH_DURATION = 0.15f;
     private static final float DASH_COOLDOWN = 2.0f;
     private static final float SHOOT_COOLDOWN = 0.35f;
-    private static final float FRICTION = 0.92f;
+    private static final float ACCEL_RATE = 6.0f;
+    private static final float DECEL_RATE = 4.0f;
     private static final float MAX_HP = 100f;
-    private static final float PROJECTILE_SPEED = 920f;
+    private static final float PROJECTILE_SPEED = 1400f;
     private static final float PROJECTILE_DAMAGE = 12f;
     private static final float SLOW_DURATION = 3.0f;
     private static final float SLOW_MULTIPLIER = 0.42f;
@@ -80,9 +81,6 @@ public class Player extends Entity {
                 vx *= 0.3f;
                 vy *= 0.3f;
             }
-        } else {
-            vx *= FRICTION;
-            vy *= FRICTION;
         }
 
         if (dashCooldownTimer > 0) {
@@ -104,14 +102,21 @@ public class Player extends Entity {
 
         float moveSpeedMultiplier = getMoveSpeedMultiplier();
         float effectiveMaxSpeed = MAX_SPEED * moveSpeedMultiplier;
-        if (!isDashing && (moveDirX != 0 || moveDirY != 0)) {
-            vx += moveDirX * effectiveMaxSpeed * 6f * deltaTime;
-            vy += moveDirY * effectiveMaxSpeed * 6f * deltaTime;
 
-            float currentSpeed = (float) Math.sqrt(vx * vx + vy * vy);
-            if (currentSpeed > effectiveMaxSpeed) {
-                vx = vx / currentSpeed * effectiveMaxSpeed;
-                vy = vy / currentSpeed * effectiveMaxSpeed;
+        if (!isDashing) {
+            float dirLen = (float) Math.sqrt(moveDirX * moveDirX + moveDirY * moveDirY);
+            if (dirLen > 0.001f) {
+                float ndx = moveDirX / dirLen;
+                float ndy = moveDirY / dirLen;
+                float targetVx = ndx * effectiveMaxSpeed;
+                float targetVy = ndy * effectiveMaxSpeed;
+                float alpha = 1f - (float) Math.exp(-ACCEL_RATE * deltaTime);
+                vx += (targetVx - vx) * alpha;
+                vy += (targetVy - vy) * alpha;
+            } else {
+                float alpha = 1f - (float) Math.exp(-DECEL_RATE * deltaTime);
+                vx += (0f - vx) * alpha;
+                vy += (0f - vy) * alpha;
             }
         }
 
@@ -212,9 +217,9 @@ public class Player extends Entity {
         }
 
         Projectile projectile = new Projectile(
-            x + dx * (radius + 5), y + dy * (radius + 5),
+            x + dx * (radius + 30f), y + dy * (radius + 30f),
             dx * PROJECTILE_SPEED, dy * PROJECTILE_SPEED,
-            12f, 0xFF00FF00, this, PROJECTILE_DAMAGE
+            24f, 0xFF00FF00, this, PROJECTILE_DAMAGE
         );
         projectiles.add(projectile);
         shootCooldownTimer = SHOOT_COOLDOWN;
@@ -261,6 +266,12 @@ public class Player extends Entity {
 
     public void applySlow() {
         slowTimer = SLOW_DURATION;
+    }
+
+    public void applyKnockback(float dirX, float dirY, float force) {
+        if (!alive) return;
+        vx += dirX * force;
+        vy += dirY * force;
     }
 
     public void updateVisualState(float deltaTime, Player opponent) {

@@ -15,6 +15,8 @@ public class GameState {
         DRAW
     }
 
+    private static final float KNOCKBACK_FORCE = 360f;
+
     private Player player1;
     private Player player2;
     private State state;
@@ -64,6 +66,7 @@ public class GameState {
                 addExplosion((p.getX() + target.getX()) * 0.5f, (p.getY() + target.getY()) * 0.5f, 0xFFFF5E5E);
                 target.takeDamage(p.getDamage());
                 target.applySlow();
+                target.applyKnockback(p.getDirectionX(), p.getDirectionY(), KNOCKBACK_FORCE);
                 p.setAlive(false);
 
                 if (p.getOwner().getAIController() != null) {

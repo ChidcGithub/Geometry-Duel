@@ -25,9 +25,9 @@ public class GameEngine {
 
     private final int COLOR_BG = 0xFF0D0D0D;
     private final int COLOR_P1_FILL = 0xFFFFFFFF;
-    private final int COLOR_P1_STROKE = 0xFF888888;
-    private final int COLOR_P2_FILL = 0xFF1C1C1E;
-    private final int COLOR_P2_STROKE = 0xFFFFFFFF;
+    private final int COLOR_P1_STROKE = 0xFFFFFFFF;
+    private final int COLOR_P2_FILL = 0xFF000000;
+    private final int COLOR_P2_STROKE = 0xFF000000;
     private final int COLOR_GRID = 0x14FFFFFF;
     private final int COLOR_CENTER = 0x26FFFFFF;
     private final int COLOR_HP_BG = 0xFF2A2A2D;
@@ -158,7 +158,7 @@ public class GameEngine {
         hpBorderPaintP1.setStrokeWidth(1.5f);
 
         hpBorderPaintP2 = new Paint(Paint.ANTI_ALIAS_FLAG);
-        hpBorderPaintP2.setColor(COLOR_P2_STROKE);
+        hpBorderPaintP2.setColor(0xFFFFFFFF);
         hpBorderPaintP2.setStyle(Paint.Style.STROKE);
         hpBorderPaintP2.setStrokeWidth(1.5f);
 
@@ -201,7 +201,7 @@ public class GameEngine {
         this.running = true;
 
         int p1Color = 0xFFFFFFFF;
-        int p2Color = 0xFF4A4A4D;
+        int p2Color = 0xFF000000;
 
         Player p1 = new Player(arenaWidth * 0.25f, arenaHeight * 0.5f,
             p1Color, 0, "PLAYER", arenaWidth, arenaHeight);
