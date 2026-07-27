@@ -14,15 +14,22 @@ public class MatchStats {
      * 适应度：胜利大分 + 存活时间 + 命中奖励 - 受击惩罚 + 技能使用行为奖励。
      * 行为奖励（reward shaping）带封顶、权重远小于胜负/命中：
      * 引导网络先学会「会用技能」，再由胜负大分主导进化，避免学会刷招。
+     *
+     * @param shaping 课程式系数：前期 >1 强行引导技能使用，随世代衰减到 0.2 保底
      */
-    public float fitness() {
+    public float fitness(float shaping) {
         float f = aiWon ? 100f : 0f;
         f += Math.min(frames, 7200) / 7200f * 20f;
         f += hitsDealt * 15f;
         f -= hitsTaken * 5f;
-        f += Math.min(shotsFired, 40) * 0.5f;
-        f += Math.min(longShotsFired, 10) * 5f;
-        f += Math.min(teleportsUsed, 8) * 3f;
+        f += Math.min(shotsFired, 40) * 0.5f * shaping;
+        f += Math.min(longShotsFired, 10) * 5f * shaping;
+        f += Math.min(teleportsUsed, 8) * 3f * shaping;
         return f;
+    }
+
+    /** 无课程缩放（shaping=1）。 */
+    public float fitness() {
+        return fitness(1f);
     }
 }

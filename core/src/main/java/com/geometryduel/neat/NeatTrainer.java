@@ -188,27 +188,36 @@ public class NeatTrainer {
                 : new NeatEvolver(inputCount, 5, POPULATION, population, counter, rng);
     }
 
+    /**
+     * 课程式奖励系数：gen 0 ≈ 3.0（强行 bootstrap 技能使用）→ 指数衰减 → 0.2 保底。
+     * 约 80 代后回到 ~1.2，160 代后 ~0.6，技能已成为手段而非目标。
+     */
+    public static float shapingScale(int generation) {
+        return 0.2f + 2.8f * (float) Math.exp(-generation / 80.0);
+    }
+
     private void runGeneration() {
         NeatEvolver ev = evolver;
         ArrayList<Genome> pop = ev.population;
         float[] fitness = new float[pop.size()];
+        float shaping = shapingScale(generation);
         for (int i = 0; i < pop.size(); i++) {
             if (stopped || paused || ev != evolver) return; // 代中止：不进化，下轮重跑
             Genome g = pop.get(i);
             float f = 0f;
             int n = 0;
-            f += simulate(g, null, null).fitness(); // vs 规则 AI
+            f += simulate(g, null, null).fitness(shaping); // vs 规则 AI
             n++;
             simMatches++;
             Genome hof = hallOfFame;
             if (hof != null) {
-                f += simulate(g, hof, null).fitness(); // vs 上代冠军
+                f += simulate(g, hof, null).fitness(shaping); // vs 上代冠军
                 n++;
                 simMatches++;
             }
             GhostData ghost = pickGhost();
             if (ghost != null) {
-                f += simulate(g, null, ghost).fitness(); // vs 玩家影子
+                f += simulate(g, null, ghost).fitness(shaping); // vs 玩家影子
                 n++;
                 simMatches++;
             }
@@ -221,12 +230,12 @@ public class NeatTrainer {
         for (int i = 1; i < fitness.length; i++) {
             if (fitness[i] > fitness[best]) best = i;
         }
-        if (fitness[best] > bestFitness || champion == null) {
-            bestFitness = Math.max(bestFitness, fitness[best]);
-            hallOfFame = champion;
-            champion = pop.get(best).copy();
-            championSource = pop.get(best);
-        }
+        // 课程式奖励下跨代适应度不可直接比较：每代滚动晋升当代最优为冠军，
+        // 上代冠军转为名人堂陪练（新一代必须能打赢它才能拿高分，形成自我对弈锚点）
+        hallOfFame = champion;
+        champion = pop.get(best).copy();
+        championSource = pop.get(best);
+        bestFitness = Math.max(bestFitness, fitness[best]);
         ev.nextGeneration(fitness);
         generation++;
         realMatchBonus *= 0.7f;
