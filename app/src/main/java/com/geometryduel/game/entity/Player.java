@@ -16,14 +16,20 @@ public class Player extends Entity {
     private static final float SHOOT_COOLDOWN = 0.35f;
     private static final float FRICTION = 0.92f;
     private static final float MAX_HP = 100f;
-    private static final float PROJECTILE_SPEED = 500f;
+    private static final float PROJECTILE_SPEED = 920f;
     private static final float PROJECTILE_DAMAGE = 12f;
+    private static final float SLOW_DURATION = 3.0f;
+    private static final float SLOW_MULTIPLIER = 0.42f;
+    private static final float ROTATION_IDLE_RETURN = 7.0f;
+    private static final float ROTATION_SPIN_BASE = 180f;
+    private static final float ROTATION_SPIN_BOOST = 640f;
 
     private float hp;
     private float maxHp;
     private float shootCooldownTimer;
     private float dashTimer;
     private float dashCooldownTimer;
+    private float slowTimer;
     private boolean isDashing;
     private int playerId;
     private String name;
@@ -39,13 +45,14 @@ public class Player extends Entity {
 
     private float shootTargetX;
     private float shootTargetY;
+    private float rotationDegrees;
 
     private final float arenaWidth;
     private final float arenaHeight;
 
     public Player(float x, float y, int color, int playerId, String name,
                   float arenaWidth, float arenaHeight) {
-        super(x, y, 25f, color);
+        super(x, y, 50f, color);
         this.playerId = playerId;
         this.name = name;
         this.hp = MAX_HP;
@@ -55,7 +62,9 @@ public class Player extends Entity {
         this.shootCooldownTimer = 0;
         this.dashTimer = 0;
         this.dashCooldownTimer = 0;
+        this.slowTimer = 0;
         this.isDashing = false;
+        this.rotationDegrees = 0f;
         this.arenaWidth = arenaWidth;
         this.arenaHeight = arenaHeight;
     }
@@ -84,16 +93,25 @@ public class Player extends Entity {
             shootCooldownTimer -= deltaTime;
         }
 
+        if (slowTimer > 0f) {
+            slowTimer -= deltaTime;
+            if (slowTimer < 0f) {
+                slowTimer = 0f;
+            }
+        }
+
         applyAIInput(deltaTime);
 
+        float moveSpeedMultiplier = getMoveSpeedMultiplier();
+        float effectiveMaxSpeed = MAX_SPEED * moveSpeedMultiplier;
         if (!isDashing && (moveDirX != 0 || moveDirY != 0)) {
-            vx += moveDirX * MAX_SPEED * 6f * deltaTime;
-            vy += moveDirY * MAX_SPEED * 6f * deltaTime;
+            vx += moveDirX * effectiveMaxSpeed * 6f * deltaTime;
+            vy += moveDirY * effectiveMaxSpeed * 6f * deltaTime;
 
             float currentSpeed = (float) Math.sqrt(vx * vx + vy * vy);
-            if (currentSpeed > MAX_SPEED) {
-                vx = vx / currentSpeed * MAX_SPEED;
-                vy = vy / currentSpeed * MAX_SPEED;
+            if (currentSpeed > effectiveMaxSpeed) {
+                vx = vx / currentSpeed * effectiveMaxSpeed;
+                vy = vy / currentSpeed * effectiveMaxSpeed;
             }
         }
 
@@ -147,8 +165,9 @@ public class Player extends Entity {
             float dirY = decision.getTargetY();
             float len = (float) Math.sqrt(dirX * dirX + dirY * dirY);
             if (len > 0) {
-                vx = dirX / len * DASH_SPEED;
-                vy = dirY / len * DASH_SPEED;
+                float dashSpeed = DASH_SPEED * Math.max(0.6f, getMoveSpeedMultiplier());
+                vx = dirX / len * dashSpeed;
+                vy = dirY / len * dashSpeed;
             }
             isDashing = true;
             dashTimer = DASH_DURATION;
@@ -195,7 +214,7 @@ public class Player extends Entity {
         Projectile projectile = new Projectile(
             x + dx * (radius + 5), y + dy * (radius + 5),
             dx * PROJECTILE_SPEED, dy * PROJECTILE_SPEED,
-            6f, 0xFF00FF00, this, PROJECTILE_DAMAGE
+            12f, 0xFF00FF00, this, PROJECTILE_DAMAGE
         );
         projectiles.add(projectile);
         shootCooldownTimer = SHOOT_COOLDOWN;
@@ -218,8 +237,9 @@ public class Player extends Entity {
             dirX /= len;
             dirY /= len;
         }
-        vx = dirX * DASH_SPEED;
-        vy = dirY * DASH_SPEED;
+        float dashSpeed = DASH_SPEED * Math.max(0.6f, getMoveSpeedMultiplier());
+        vx = dirX * dashSpeed;
+        vy = dirY * dashSpeed;
         isDashing = true;
         dashTimer = DASH_DURATION;
         dashCooldownTimer = DASH_COOLDOWN;
@@ -237,6 +257,56 @@ public class Player extends Entity {
             hp = 0;
             alive = false;
         }
+    }
+
+    public void applySlow() {
+        slowTimer = SLOW_DURATION;
+    }
+
+    public void updateVisualState(float deltaTime, Player opponent) {
+        if (!alive || opponent == null) {
+            return;
+        }
+
+        float toOpponentX = opponent.getX() - x;
+        float toOpponentY = opponent.getY() - y;
+        float dist = (float) Math.sqrt(toOpponentX * toOpponentX + toOpponentY * toOpponentY);
+
+        if (dist <= 0.001f) {
+            rotationDegrees *= Math.max(0f, 1f - deltaTime * ROTATION_IDLE_RETURN);
+            return;
+        }
+
+        float tangentX = -toOpponentY / dist;
+        float tangentY = toOpponentX / dist;
+        float lateralSpeed = vx * tangentX + vy * tangentY;
+        float speed = (float) Math.sqrt(vx * vx + vy * vy);
+        float normalizedSpeed = Math.min(1f, speed / DASH_SPEED);
+        float normalizedLateral = Math.min(1f, Math.abs(lateralSpeed) / DASH_SPEED);
+
+        if (normalizedSpeed < 0.08f && !isDashing) {
+            rotationDegrees *= Math.max(0f, 1f - deltaTime * ROTATION_IDLE_RETURN);
+            return;
+        }
+
+        float spinDirection = lateralSpeed == 0f ? 0f : Math.signum(lateralSpeed);
+        if (spinDirection == 0f && speed > 0f) {
+            spinDirection = Math.signum(vy == 0f ? vx : vy);
+        }
+
+        float nonlinearSpin = ROTATION_SPIN_BASE
+            + ROTATION_SPIN_BOOST * (float) Math.pow(normalizedSpeed, 1.75f)
+            * (0.35f + (float) Math.pow(Math.max(normalizedLateral, 0.2f), 1.45f));
+
+        if (isDashing) {
+            nonlinearSpin *= 1.25f;
+        }
+
+        rotationDegrees += spinDirection * nonlinearSpin * deltaTime;
+    }
+
+    private float getMoveSpeedMultiplier() {
+        return slowTimer > 0f ? SLOW_MULTIPLIER : 1f;
     }
 
     private void clampToArena() {
@@ -264,4 +334,7 @@ public class Player extends Entity {
     public AIController getAIController() { return aiController; }
     public int getMoveDirX() { return moveDirX; }
     public int getMoveDirY() { return moveDirY; }
+    public float getRotationDegrees() { return rotationDegrees; }
+    public boolean isSlowed() { return slowTimer > 0f; }
+    public float getSlowRatio() { return Math.min(1f, slowTimer / SLOW_DURATION); }
 }

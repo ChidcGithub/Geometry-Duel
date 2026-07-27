@@ -2,12 +2,14 @@ package com.geometryduel.game;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 
 import com.geometryduel.game.ai.AIController;
 import com.geometryduel.game.ai.AIDifficulty;
 import com.geometryduel.game.ai.SimpleAI;
+import com.geometryduel.game.entity.ExplosionEffect;
 import com.geometryduel.game.entity.GameState;
 import com.geometryduel.game.entity.Player;
 import com.geometryduel.game.entity.Projectile;
@@ -34,6 +36,7 @@ public class GameEngine {
     private final int COLOR_TEXT = 0xFFFFFFFF;
     private final int COLOR_TEXT_DIM = 0x80FFFFFF;
     private final int COLOR_OVERLAY = 0xE6000000;
+    private final int COLOR_SLOW_RING = 0xFFFF4D4D;
 
     private Paint p1FillPaint;
     private Paint p1StrokePaint;
@@ -58,8 +61,12 @@ public class GameEngine {
     private Paint hpTextPaint;
     private Paint namePaintP1;
     private Paint namePaintP2;
+    private Paint slowRingPaint;
+    private Paint particlePaint;
 
     private RectF hpRect;
+    private RectF reusableRect;
+    private Path arrowPath;
     private boolean running;
 
     public GameEngine() {
@@ -172,7 +179,17 @@ public class GameEngine {
         namePaintP2.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
         namePaintP2.setTextAlign(Paint.Align.RIGHT);
 
+        slowRingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        slowRingPaint.setColor(COLOR_SLOW_RING);
+        slowRingPaint.setStyle(Paint.Style.STROKE);
+        slowRingPaint.setStrokeWidth(5f);
+
+        particlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        particlePaint.setStyle(Paint.Style.FILL);
+
         hpRect = new RectF();
+        reusableRect = new RectF();
+        arrowPath = new Path();
         running = false;
     }
 
@@ -256,6 +273,7 @@ public class GameEngine {
         if (p2 != null) drawPlayer(canvas, p2, false);
 
         drawAllProjectiles(canvas);
+        drawExplosionEffects(canvas);
 
         float barW = Math.min(280f, arenaWidth * 0.35f);
         if (p1 != null) drawHPBar(canvas, p1, 24, 24, barW, true);
@@ -288,21 +306,34 @@ public class GameEngine {
         float x = player.getX();
         float y = player.getY();
         float r = player.getRadius();
+        float squareHalf = r * 0.88f;
+        float innerHalf = squareHalf * 0.33f;
 
-        if (isP1) {
-            canvas.drawCircle(x, y, r, p1FillPaint);
-            canvas.drawCircle(x, y, r, p1StrokePaint);
-        } else {
-            canvas.drawCircle(x, y, r, p2FillPaint);
-            canvas.drawCircle(x, y, r, p2StrokePaint);
+        if (player.isSlowed()) {
+            slowRingPaint.setAlpha((int) (110 + 100 * player.getSlowRatio()));
+            canvas.drawCircle(x, y, r + 16f, slowRingPaint);
         }
 
-        float innerR = r * 0.3f;
+        canvas.save();
+        canvas.rotate(player.getRotationDegrees(), x, y);
+
+        Paint fillPaint = isP1 ? p1FillPaint : p2FillPaint;
+        Paint strokePaint = isP1 ? p1StrokePaint : p2StrokePaint;
         Paint innerP = isP1 ? innerPaintP1 : innerPaintP2;
-        canvas.drawCircle(x - r * 0.2f, y - r * 0.2f, innerR, innerP);
+
+        reusableRect.set(x - squareHalf, y - squareHalf, x + squareHalf, y + squareHalf);
+        canvas.drawRect(reusableRect, fillPaint);
+        canvas.drawRect(reusableRect, strokePaint);
+
+        reusableRect.set(x - innerHalf, y - squareHalf * 0.72f, x + innerHalf, y - squareHalf * 0.1f);
+        canvas.drawRect(reusableRect, innerP);
+
+        reusableRect.set(x - squareHalf * 0.18f, y + squareHalf * 0.15f, x + squareHalf * 0.18f, y + squareHalf * 0.48f);
+        canvas.drawRect(reusableRect, innerP);
+        canvas.restore();
 
         if (player.isAIControlled()) {
-            canvas.drawText("AI", x, y - r - 12, aiLabelPaint);
+            canvas.drawText("AI", x, y - r - 22, aiLabelPaint);
         }
     }
 
@@ -317,12 +348,45 @@ public class GameEngine {
 
             float px = p.getX();
             float py = p.getY();
-            float pr = p.getRadius();
-            canvas.drawCircle(px, py, pr, projectilePaint);
+            float pr = p.getRadius() * 2.8f;
+            float angle = (float) Math.toDegrees(Math.atan2(p.getDirectionY(), p.getDirectionX()));
+
+            canvas.save();
+            canvas.translate(px, py);
+            canvas.rotate(angle);
 
             projectileStrokePaint.setColor(projectilePaint.getColor());
-            canvas.drawCircle(px, py, pr + 2, projectileStrokePaint);
-            projectilePaint.setStyle(Paint.Style.FILL);
+            projectileStrokePaint.setStrokeWidth(4f);
+            canvas.drawLine(-pr * 0.7f, 0, pr * 0.45f, 0, projectileStrokePaint);
+            canvas.drawLine(pr * 0.45f, 0, pr * 0.05f, -pr * 0.35f, projectileStrokePaint);
+            canvas.drawLine(pr * 0.45f, 0, pr * 0.05f, pr * 0.35f, projectileStrokePaint);
+
+            arrowPath.reset();
+            arrowPath.moveTo(pr * 0.55f, 0);
+            arrowPath.lineTo(pr * 0.04f, -pr * 0.24f);
+            arrowPath.lineTo(pr * 0.04f, pr * 0.24f);
+            arrowPath.close();
+            canvas.drawPath(arrowPath, projectilePaint);
+            canvas.restore();
+        }
+    }
+
+    private void drawExplosionEffects(Canvas canvas) {
+        for (ExplosionEffect effect : gameState.getExplosionEffects()) {
+            int alpha = Math.max(0, Math.min(255, (int) (255 * effect.getLifeRatio())));
+            particlePaint.setColor(effect.getColor());
+            particlePaint.setAlpha(alpha);
+
+            for (int i = 0; i < effect.getParticleCount(); i++) {
+                float size = effect.getParticleSize(i);
+                reusableRect.set(
+                    effect.getParticleX(i) - size * 0.5f,
+                    effect.getParticleY(i) - size * 0.5f,
+                    effect.getParticleX(i) + size * 0.5f,
+                    effect.getParticleY(i) + size * 0.5f
+                );
+                canvas.drawRect(reusableRect, particlePaint);
+            }
         }
     }
 
