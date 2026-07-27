@@ -51,8 +51,8 @@ public class GameScreen extends ScreenAdapter {
         worldCam.setToOrtho(true, 640, 640);
         worldVp = new FitViewport(640, 640, worldCam);
         uiVp = new ScreenViewport();
-        backBtn = new TextButton("返回", 0, 0, 120, 48);
-        pauseBtn = new TextButton("暂停", 0, 0, 120, 48);
+        backBtn = new TextButton("Back", 0, 0, 120, 48);
+        pauseBtn = new TextButton("Pause", 0, 0, 120, 48);
         newGame(true, true);
     }
 
@@ -295,19 +295,19 @@ public class GameScreen extends ScreenAdapter {
             if (st.properFrameCount < PlayGameState.MESSAGE_DURATION) {
                 float alpha = 1f - st.properFrameCount / (float) PlayGameState.MESSAGE_DURATION;
                 app.font.getData().setScale(4f * unit);
-                layout.setText(app.font, "冲啊！！");
+                layout.setText(app.font, "Go!!");
                 app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, alpha);
-                app.font.draw(app.batch, "冲啊！！", (w - layout.width) / 2f, (h + layout.height) / 2f);
+                app.font.draw(app.batch, "Go!!", (w - layout.width) / 2f, (h + layout.height) / 2f);
             }
         } else if (system.currentState instanceof ResultGameState && !system.demoPlay) {
             ResultGameState st = (ResultGameState) system.currentState;
-            String msg = st.playerWon ? "你赢了" : "你输了";
+            String msg = st.playerWon ? "You Win!" : "You Lose!";
             app.font.getData().setScale(4f * unit);
             layout.setText(app.font, msg);
             app.font.setColor(app.theme.text);
             app.font.draw(app.batch, msg, (w - layout.width) / 2f, h / 2f - unit * 10f);
             if (st.properFrameCount > ResultGameState.DURATION) {
-                String hint = app.isAndroid ? "按 X 键重新开始" : "按 X 键重新开始";
+                String hint = "Press X to Restart";
                 app.font.getData().setScale(1.6f * unit);
                 layout.setText(app.font, hint);
                 app.font.draw(app.batch, hint, (w - layout.width) / 2f, h / 2f + unit * 40f);
@@ -316,9 +316,9 @@ public class GameScreen extends ScreenAdapter {
 
         if (paused) {
             app.font.getData().setScale(4f * unit);
-            layout.setText(app.font, "暂停");
+            layout.setText(app.font, "Paused");
             app.font.setColor(app.theme.text);
-            app.font.draw(app.batch, "暂停", (w - layout.width) / 2f, (h + layout.height) / 2f);
+            app.font.draw(app.batch, "Paused", (w - layout.width) / 2f, (h + layout.height) / 2f);
         }
 
         if (system.demoPlay && system.showInstruction) {
@@ -349,31 +349,31 @@ public class GameScreen extends ScreenAdapter {
         float px = (w - pw) / 2f, py = (h - pw * 460f / 576f) / 2f;
         float u = pw / 576f; // DemoInfo 以 576x460 绘制
         app.font.setColor(app.theme.text);
-        text("几何决斗！", px + 180 * u, py + 50 * u, 3f * u);
+        text("Geometry Duel!", px + 180 * u, py + 50 * u, 3f * u);
         if (app.isAndroid) {
-            text("      Z 按键:", px + 60 * u, py + 120 * u, 2f * u);
-            text("      X 按键:", px + 60 * u, py + 160 * u, 2f * u);
-            text("左手触摸屏幕:", px + 60 * u, py + 210 * u, 2f * u);
-            text("普通攻击", px + 300 * u, py + 120 * u, 2f * u);
-            text("致命大招", px + 300 * u, py + 160 * u, 2f * u);
-            text("移动或瞄准", px + 300 * u, py + 210 * u, 2f * u);
-            text("- 按 Z 键开始游戏 -", px + 160 * u, py + 320 * u, 2f * u);
-            text("(轻触显示或隐藏此界面)", px + 160 * u, py + 360 * u, 2f * u);
+            text("   Z Button:", px + 60 * u, py + 120 * u, 2f * u);
+            text("   X Button:", px + 60 * u, py + 160 * u, 2f * u);
+            text("Left Touch:", px + 60 * u, py + 210 * u, 2f * u);
+            text("Normal Attack", px + 300 * u, py + 120 * u, 2f * u);
+            text("Deadly Attack", px + 300 * u, py + 160 * u, 2f * u);
+            text("Move or Aim", px + 300 * u, py + 210 * u, 2f * u);
+            text("- Press Z to Start -", px + 160 * u, py + 320 * u, 2f * u);
+            text("(Tap to Show/Hide)", px + 160 * u, py + 360 * u, 2f * u);
             app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 192 / 255f);
-            text("由FAL制作！由Pama1234移植到安卓版！", px + 20 * u, py + 400 * u, 1f * u);
-            text("原型复刻版", px + 20 * u, py + 420 * u, 1f * u);
+            text("Made by FAL! Android port by Pama1234!", px + 20 * u, py + 400 * u, 1f * u);
+            text("Unofficial Remake", px + 20 * u, py + 420 * u, 1f * u);
         } else {
-            text("      Z 按键:", px + 180 * u, py + 120 * u, 1.4f * u);
-            text("      X 按键:", px + 180 * u, py + 190 * u, 1.4f * u);
-            text("      方向键:", px + 180 * u, py + 265 * u, 1.4f * u);
-            text("普通攻击\n (自动瞄准)", px + 300 * u, py + 120 * u, 1.4f * u);
-            text("致命大招\n (手动瞄准,\n  需要蓄力)", px + 300 * u, py + 190 * u, 1.4f * u);
-            text("移动\n (或使用大招时进行瞄准)", px + 300 * u, py + 265 * u, 1.4f * u);
-            text("- 按 Z 键开始游戏 -", px + 192 * u, py + 350 * u, 1.4f * u);
-            text("(点击显示或隐藏此界面)", px + 192 * u, py + 380 * u, 1.4f * u);
+            text("    Z Key:", px + 180 * u, py + 120 * u, 1.4f * u);
+            text("    X Key:", px + 180 * u, py + 190 * u, 1.4f * u);
+            text("  Arrows:", px + 180 * u, py + 265 * u, 1.4f * u);
+            text("Normal Attack\n (Auto-aim)", px + 300 * u, py + 120 * u, 1.4f * u);
+            text("Deadly Attack\n (Manual aim,\n  charge required)", px + 300 * u, py + 190 * u, 1.4f * u);
+            text("Move\n (or aim while charging)", px + 300 * u, py + 265 * u, 1.4f * u);
+            text("- Press Z to Start -", px + 192 * u, py + 350 * u, 1.4f * u);
+            text("(Click to Show/Hide)", px + 192 * u, py + 380 * u, 1.4f * u);
             app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 192 / 255f);
-            text("由FAL制作！由Pama1234移植到安卓版！", px + 20 * u, py + 420 * u, 1f * u);
-            text("原型复刻版", px + 20 * u, py + 440 * u, 1f * u);
+            text("Made by FAL! Android port by Pama1234!", px + 20 * u, py + 420 * u, 1f * u);
+            text("Unofficial Remake", px + 20 * u, py + 440 * u, 1f * u);
         }
         app.font.setColor(app.theme.text);
     }

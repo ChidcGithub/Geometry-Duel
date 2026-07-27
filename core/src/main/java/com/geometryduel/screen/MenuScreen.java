@@ -35,9 +35,9 @@ public class MenuScreen extends ScreenAdapter {
         uiVp = new ScreenViewport();
         background = new GameBackground(app.theme.backgroundLine, 0.1f);
         buttons = new TextButton[]{
-                new TextButton("开始游戏", 0, 0, 260, 64),
-                new TextButton("教学模式", 0, 0, 260, 64),
-                new TextButton("  设置  ", 0, 0, 260, 64),
+                new TextButton("Start Game", 0, 0, 260, 64),
+                new TextButton("Tutorial", 0, 0, 260, 64),
+                new TextButton("Settings", 0, 0, 260, 64),
         };
     }
 
@@ -88,9 +88,9 @@ public class MenuScreen extends ScreenAdapter {
         float w = uiVp.getWorldWidth(), h = uiVp.getWorldHeight();
         float unit = h / 640f;
         app.font.getData().setScale(4f * unit);
-        layout.setText(app.font, "几何决斗");
+        layout.setText(app.font, "Geometry Duel");
         app.font.setColor(app.theme.text);
-        app.font.draw(app.batch, "几何决斗", (w - layout.width) / 2f, h * 0.071f + layout.height);
+        app.font.draw(app.batch, "Geometry Duel", (w - layout.width) / 2f, h * 0.071f + layout.height);
         for (TextButton b : buttons) b.drawText(app.batch, app.font, app.theme, 2f * unit);
         app.font.getData().setScale(1f);
         app.batch.end();

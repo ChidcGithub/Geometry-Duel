@@ -26,8 +26,8 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
     @Override
     public void uncaughtException(Thread thread, Throwable throwable) {
         String trace = Log.getStackTraceString(throwable);
-        String body = "Geometry Duel 崩溃报告\n线程: " + thread.getName()
-                + "\n时间: " + new Date() + "\n\n" + trace;
+        String body = "Geometry Duel Crash Report\nThread: " + thread.getName()
+                + "\nTime: " + new Date() + "\n\n" + trace;
 
         String savedPath = null;
         try {

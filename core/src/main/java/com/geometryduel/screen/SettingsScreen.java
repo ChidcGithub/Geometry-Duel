@@ -29,7 +29,7 @@ public class SettingsScreen extends ScreenAdapter {
         themeBtn = new TextButton("", 0, 0, 300, 64);
         volumeMinus = new TextButton("-", 0, 0, 64, 64);
         volumePlus = new TextButton("+", 0, 0, 64, 64);
-        backBtn = new TextButton("返回", 0, 0, 200, 64);
+        backBtn = new TextButton("Back", 0, 0, 200, 64);
     }
 
     @Override
@@ -75,7 +75,7 @@ public class SettingsScreen extends ScreenAdapter {
 
         float w = uiVp.getWorldWidth(), h = uiVp.getWorldHeight();
         float unit = h / 640f;
-        themeBtn.text = "主题：" + (app.themeType == ThemeData.Type.Dark ? "暗色" : "亮色");
+        themeBtn.text = "Theme: " + (app.themeType == ThemeData.Type.Dark ? "Dark" : "Light");
         themeBtn.w = 300 * unit;
         themeBtn.h = 64 * unit;
         themeBtn.setCenter(w / 2f, h * 0.35f);
@@ -98,15 +98,15 @@ public class SettingsScreen extends ScreenAdapter {
         app.batch.begin();
         app.batch.setProjectionMatrix(uiVp.getCamera().combined);
         app.font.getData().setScale(3f * unit);
-        layout.setText(app.font, "设置");
+        layout.setText(app.font, "Settings");
         app.font.setColor(app.theme.text);
-        app.font.draw(app.batch, "设置", (w - layout.width) / 2f, h * 0.15f + layout.height);
+        app.font.draw(app.batch, "Settings", (w - layout.width) / 2f, h * 0.15f + layout.height);
         themeBtn.drawText(app.batch, app.font, app.theme, 1.6f * unit);
         volumeMinus.drawText(app.batch, app.font, app.theme, 2f * unit);
         volumePlus.drawText(app.batch, app.font, app.theme, 2f * unit);
         app.font.getData().setScale(1.6f * unit);
-        layout.setText(app.font, "音量：" + Math.round(app.volume * 100) + "%");
-        app.font.draw(app.batch, "音量：" + Math.round(app.volume * 100) + "%",
+        layout.setText(app.font, "Volume: " + Math.round(app.volume * 100) + "%");
+        app.font.draw(app.batch, "Volume: " + Math.round(app.volume * 100) + "%",
                 (w - layout.width) / 2f, h * 0.55f + layout.height / 2f);
         backBtn.drawText(app.batch, app.font, app.theme, 1.6f * unit);
         app.font.getData().setScale(1f);

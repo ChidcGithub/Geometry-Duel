@@ -14,7 +14,7 @@ public class TutorialScreen extends GameScreen {
     private static final float LEVEL_STEP = 0.2f;
 
     private float level = 0.02f;
-    private final TextButton skipBtn = new TextButton("跳过", 0, 0, 120, 48);
+    private final TextButton skipBtn = new TextButton("Skip", 0, 0, 120, 48);
 
     public TutorialScreen(GeometryDuelGame app) {
         super(app);
@@ -65,11 +65,11 @@ public class TutorialScreen extends GameScreen {
         app.font.getData().setScale(1.4f * unit);
         app.font.setColor(app.theme.text);
         float x = unit * 12f, y = h - unit * 40f;
-        app.font.draw(app.batch, "教学模式", x, y);
-        app.font.draw(app.batch, "难度：" + String.format(java.util.Locale.US, "%.2f", level), x, y - 24f * unit);
-        app.font.draw(app.batch, "状态：" + (app.tutorialDone ? "已完成" : "进行中"), x, y - 48f * unit);
+        app.font.draw(app.batch, "Tutorial Mode", x, y);
+        app.font.draw(app.batch, "Level: " + String.format(java.util.Locale.US, "%.2f", level), x, y - 24f * unit);
+        app.font.draw(app.batch, "Status: " + (app.tutorialDone ? "Done" : "Active"), x, y - 48f * unit);
         int remain = (int) Math.ceil((1.0f - level) / LEVEL_STEP);
-        app.font.draw(app.batch, "目标：再赢" + Math.max(0, remain) + "次", x, y - 72f * unit);
+        app.font.draw(app.batch, "Goal: Win " + Math.max(0, remain) + " More", x, y - 72f * unit);
         skipBtn.drawText(app.batch, app.font, app.theme, 1.2f * unit);
     }
 }

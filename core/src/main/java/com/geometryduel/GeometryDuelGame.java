@@ -17,13 +17,6 @@ import com.geometryduel.screen.MenuScreen;
  * 原作：FAL；安卓移植：Pama1234。
  */
 public class GeometryDuelGame extends Game {
-    /** 游戏内全部 UI 文本用到的非 ASCII 字符（新增界面文本时需同步补充）。 */
-    private static final String FONT_CHARS =
-            "中主了亮何作你使停再冲决准几击到制刻力动卓原向命" +
-            "啊回型复大始学安完屏左已幕度开式态戏成或手招按摸攻教" +
-            "斗新方时显普暂暗标植模次此游点版状用由界目瞄示移置自" +
-            "致色蓄藏行要触设赢跳轻输过返进通重量键隐难需面音题！：";
-
     public final boolean isAndroid;
 
     public Shapes shapes;
@@ -57,25 +50,18 @@ public class GeometryDuelGame extends Game {
     }
 
     /**
-     * 字体加载：优先使用系统自带中文字体（安卓为 Noto CJK / Droid Sans Fallback，
-     * 桌面为微软雅黑/苹方/Noto CJK），经 FreeType 生成位图字体；
-     * 全部失败时回退到内置 unifont-15（仅含部分字符，中文会缺字）。
+     * 字体加载：优先使用系统自带无衬线字体（安卓 Roboto，桌面 Arial/Helvetica/DejaVu），
+     * 经 FreeType 生成 16px 位图字体；全部失败时回退到 libGDX 内置 Arial 15。
      */
     private BitmapFont loadFont() {
         String[] candidates = isAndroid ? new String[] {
-                "/system/fonts/NotoSansSC-Regular.otf",
-                "/system/fonts/NotoSansCJKsc-Regular.otf",
-                "/system/fonts/NotoSansCJK-Regular.ttc",
-                "/system/fonts/DroidSansFallbackFull.ttf",
-                "/system/fonts/DroidSansFallback.ttf",
+                "/system/fonts/Roboto-Regular.ttf",
+                "/system/fonts/DroidSans.ttf",
         } : new String[] {
-                "C:/Windows/Fonts/msyh.ttc",
-                "C:/Windows/Fonts/simhei.ttf",
-                "C:/Windows/Fonts/simsun.ttc",
-                "/System/Library/Fonts/PingFang.ttc",
-                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                "C:/Windows/Fonts/arial.ttf",
+                "/System/Library/Fonts/Helvetica.ttc",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         };
         for (String path : candidates) {
             FileHandle fh = Gdx.files.absolute(path);
@@ -85,20 +71,18 @@ public class GeometryDuelGame extends Game {
                 FreeTypeFontGenerator.FreeTypeFontParameter p =
                         new FreeTypeFontGenerator.FreeTypeFontParameter();
                 p.size = 16; // 与原 unifont-15 字号一致，保证各处 setScale 排版不变
-                p.characters = FreeTypeFontGenerator.DEFAULT_CHARS + FONT_CHARS;
                 p.minFilter = Texture.TextureFilter.Linear;
                 p.magFilter = Texture.TextureFilter.Linear;
                 BitmapFont f = gen.generateFont(p);
                 gen.dispose();
-                f.getData().lineHeight = 17f; // 与原 unifont-15 行高一致，避免多行文本错位
                 Gdx.app.log("Font", "loaded system font: " + path);
                 return f;
             } catch (Throwable t) {
                 Gdx.app.error("Font", "failed to load font: " + path, t);
             }
         }
-        Gdx.app.error("Font", "no usable system CJK font, fallback to bundled unifont-15 (中文缺字)");
-        return new BitmapFont(Gdx.files.internal("unifont/15/unifont-15.fnt"));
+        Gdx.app.error("Font", "no usable system font, fallback to built-in Arial 15");
+        return new BitmapFont();
     }
 
     public void applyTheme() {

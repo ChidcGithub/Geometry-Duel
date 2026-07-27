@@ -7,7 +7,7 @@ import com.geometryduel.GeometryDuelGame;
 public class DesktopLauncher {
     public static void main(String[] args) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
-        config.setTitle("几何决斗 Geometry Duel");
+        config.setTitle("Geometry Duel");
         config.setWindowedMode(960, 640);
         config.useVsync(true);
         config.setForegroundFPS(60);

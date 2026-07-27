@@ -34,8 +34,8 @@ public class CrashActivity extends Activity {
         tv.setBackgroundColor(Color.WHITE);
         int pad = (int) (16 * getResources().getDisplayMetrics().density);
         tv.setPadding(pad, pad, pad, pad);
-        StringBuilder sb = new StringBuilder("应用发生错误，请截图或将以下内容反馈给开发者：\n");
-        if (path != null) sb.append("日志文件: ").append(path).append("\n");
+        StringBuilder sb = new StringBuilder("The app crashed. Please send a screenshot or the text below to the developer:\n");
+        if (path != null) sb.append("Log file: ").append(path).append("\n");
         sb.append("\n").append(trace);
         tv.setText(sb.toString());
         sv.addView(tv, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -47,7 +47,7 @@ public class CrashActivity extends Activity {
             File dir = getExternalFilesDir("crash");
             if (dir == null) dir = getFilesDir();
             File f = new File(dir, "last_crash.txt");
-            if (!f.exists()) return "(无崩溃日志)";
+            if (!f.exists()) return "(no crash log)";
             BufferedReader r = new BufferedReader(new FileReader(f));
             StringBuilder sb = new StringBuilder();
             String line;
@@ -55,7 +55,7 @@ public class CrashActivity extends Activity {
             r.close();
             return sb.toString();
         } catch (Exception e) {
-            return "(读取崩溃日志失败: " + e + ")";
+            return "(failed to read crash log: " + e + ")";
         }
     }
 }
