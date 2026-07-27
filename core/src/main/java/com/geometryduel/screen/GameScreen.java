@@ -13,6 +13,11 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.geometryduel.GeometryDuelGame;
 import com.geometryduel.game.GameSystem;
 import com.geometryduel.game.InputData;
+import com.geometryduel.game.engine.PlayerEngine;
+import com.geometryduel.neat.Genome;
+import com.geometryduel.neat.MatchStats;
+import com.geometryduel.neat.MatchTracker;
+import com.geometryduel.neat.NeatEngine;
 import com.geometryduel.game.state.PlayGameState;
 import com.geometryduel.game.state.ResultGameState;
 import com.geometryduel.game.state.StartGameState;
@@ -38,6 +43,9 @@ public class GameScreen extends ScreenAdapter {
     private static final float STEP = 1f / 60f;
     private float accumulator;
     protected boolean paused;
+    private boolean matchReported;
+    /** 敌方为 NEAT 冠军时逐帧统计其技能使用（供实战上报）。 */
+    private MatchTracker aiTracker;
 
     // 触控
     private int joyPointer = -1, zPointer = -1, xPointer = -1, cPointer = -1;
@@ -67,9 +75,50 @@ public class GameScreen extends ScreenAdapter {
 
     public void newGame(boolean demo, boolean instruction) {
         if (!demo) onNewGame(false);
-        system = new GameSystem(app, demo, instruction, currentLevel(), input);
+        GameSystem.EngineFactory engineA = null, engineB = null;
+        if (app.trainer != null) {
+            if (demo) {
+                // 演示：冠军（若有）vs 规则 AI
+                final Genome champ = app.trainer.currentChampion();
+                if (champ != null) engineA = neatFactory(champ);
+            } else {
+                // 玩家对战：按设置选择 NEAT 冠军或经典规则 AI；对局期间暂停后台训练
+                app.trainer.setPaused(true);
+                if (app.opponentNeat) {
+                    final Genome champ = app.trainer.currentChampion();
+                    if (champ != null) engineB = neatFactory(champ);
+                }
+            }
+        }
+        matchReported = false;
+        system = new GameSystem(app, demo, instruction, currentLevel(), input,
+                engineA, engineB, false, null);
+        aiTracker = (!demo && engineB != null) ? new MatchTracker(system.otherGroup) : null;
         input.isZPressed = input.isXPressed = input.isCPressed = false;
         accumulator = 0;
+    }
+
+    private GameSystem.EngineFactory neatFactory(final Genome genome) {
+        return new GameSystem.EngineFactory() {
+            @Override
+            public PlayerEngine create(GameSystem sys) {
+                return new NeatEngine(genome, app.visionRays);
+            }
+        };
+    }
+
+    /** 对局结束：向训练器上报实战表现并恢复后台训练。 */
+    private void reportMatchResult() {
+        if (app.trainer == null) return;
+        ResultGameState rs = (ResultGameState) system.currentState;
+        MatchStats ms = new MatchStats();
+        ms.aiWon = !rs.playerWon;
+        ms.frames = system.frameCount;
+        ms.hitsDealt = system.myGroup.damageCount;    // 人类受击 = AI 命中
+        ms.hitsTaken = system.otherGroup.damageCount; // AI 受击
+        if (aiTracker != null) aiTracker.fill(ms);    // AI 技能使用统计
+        app.trainer.reportRealMatch(ms);
+        app.trainer.setPaused(false);
     }
 
     @Override
@@ -137,6 +186,7 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void back() {
+        if (app.trainer != null) app.trainer.setPaused(false);
         app.setScreen(new MenuScreen(app));
     }
 
@@ -177,6 +227,11 @@ public class GameScreen extends ScreenAdapter {
         }
         system.restartPressed = input.isXPressed;
         system.update();
+        if (aiTracker != null) aiTracker.update();
+        if (!system.demoPlay && !matchReported && system.currentState instanceof ResultGameState) {
+            matchReported = true;
+            reportMatchResult();
+        }
         if (system.consumeRestart()) {
             newGame(true, true);
         }
@@ -311,6 +366,17 @@ public class GameScreen extends ScreenAdapter {
                 app.font.getData().setScale(1.6f * unit);
                 layout.setText(app.font, hint);
                 app.font.draw(app.batch, hint, (w - layout.width) / 2f, h / 2f + unit * 40f);
+            }
+            // 左下角：AI 训练进度
+            if (app.trainer != null) {
+                String prog = "AI Gen " + app.trainer.generation()
+                        + "  Best " + Math.round(app.trainer.bestFitness())
+                        + "  Sims " + app.trainer.simMatches();
+                app.font.getData().setScale(1.2f * unit);
+                layout.setText(app.font, prog);
+                app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 0.55f);
+                app.font.draw(app.batch, prog, 8f * unit, h - 8f * unit);
+                app.font.setColor(app.theme.text);
             }
         }
 

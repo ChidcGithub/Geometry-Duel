@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
+import com.geometryduel.neat.NeatTrainer;
 import com.geometryduel.render.Shapes;
 import com.geometryduel.screen.MenuScreen;
 
@@ -28,6 +29,11 @@ public class GeometryDuelGame extends Game {
     public float volume = 0.5f;
     public boolean tutorialDone;
 
+    /** NEAT AI：后台训练器（持有冠军/种群/持久化）。 */
+    public NeatTrainer trainer;
+    public int visionRays = 36;
+    public boolean opponentNeat = true;
+
     public Sound sFire, lFire, longShotCharged, lFireHurt;
 
     public GeometryDuelGame(boolean isAndroid) {
@@ -46,6 +52,8 @@ public class GeometryDuelGame extends Game {
         lFireHurt = Gdx.audio.newSound(Gdx.files.internal("audio/HIT_METAL_WRENCH_HEAVIEST_02.ogg"));
 
         loadConfig();
+        trainer = new NeatTrainer(this, visionRays);
+        trainer.start();
         setScreen(new MenuScreen(this));
     }
 
@@ -99,6 +107,8 @@ public class GeometryDuelGame extends Game {
         themeType = "dark".equals(p.getString("theme", "light")) ? ThemeData.Type.Dark : ThemeData.Type.Light;
         volume = p.getFloat("volume", 0.5f);
         tutorialDone = p.getBoolean("tutorialDone", false);
+        visionRays = p.getInteger("visionRays", 36);
+        opponentNeat = p.getBoolean("opponentNeat", true);
         applyTheme();
     }
 
@@ -107,7 +117,23 @@ public class GeometryDuelGame extends Game {
         p.putString("theme", themeType == ThemeData.Type.Dark ? "dark" : "light");
         p.putFloat("volume", volume);
         p.putBoolean("tutorialDone", tutorialDone);
+        p.putInteger("visionRays", visionRays);
+        p.putBoolean("opponentNeat", opponentNeat);
         p.flush();
+    }
+
+    /** 清空 AI 训练成果并从零进化。 */
+    public void resetAi() {
+        if (trainer != null) trainer.reset(visionRays);
+    }
+
+    /** 调整视野射线数（16~64）。输入维度变化 → 重置 AI 训练。 */
+    public void setVisionRays(int rays) {
+        rays = Math.max(16, Math.min(64, rays));
+        if (rays == visionRays) return;
+        visionRays = rays;
+        saveConfig();
+        if (trainer != null) trainer.reset(rays);
     }
 
     @Override
@@ -119,6 +145,7 @@ public class GeometryDuelGame extends Game {
     @Override
     public void dispose() {
         saveConfig();
+        if (trainer != null) trainer.shutdown();
         if (getScreen() != null) getScreen().dispose();
         shapes.dispose();
         batch.dispose();

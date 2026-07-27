@@ -48,12 +48,30 @@ public class GameSystem {
     public boolean restartPressed;
     private boolean restartRequested;
 
+    /** 无头模拟：静音 + 独立随机源。 */
+    public final boolean muted;
+    private final java.util.Random rng;
+
+    /** 引擎工厂：解决引擎依赖 GameSystem 引用、而 GameSystem 构造期就要建引擎的循环依赖。 */
+    public interface EngineFactory {
+        PlayerEngine create(GameSystem sys);
+    }
+
     public GameSystem(GeometryDuelGame app, boolean demoPlay, boolean showInstruction,
                       float level, InputData humanInput) {
+        this(app, demoPlay, showInstruction, level, humanInput, null, null, false, null);
+    }
+
+    public GameSystem(GeometryDuelGame app, boolean demoPlay, boolean showInstruction,
+                      float level, InputData humanInput,
+                      EngineFactory engineAFactory, EngineFactory engineBFactory,
+                      boolean muted, java.util.Random rng) {
         this.app = app;
         this.demoPlay = demoPlay;
         this.showInstruction = showInstruction;
         this.level = level;
+        this.muted = muted;
+        this.rng = rng;
 
         myGroup.enemyGroup = otherGroup;
         otherGroup.enemyGroup = myGroup;
@@ -72,14 +90,16 @@ public class GameSystem {
         teleport.moveState = move;
         damagedState.moveState = move;
 
-        PlayerEngine engineA = demoPlay ? new ComputerEngine(this, level)
-                : new HumanEngine(humanInput, app.isAndroid);
+        PlayerEngine engineA = engineAFactory != null ? engineAFactory.create(this)
+                : (demoPlay ? new ComputerEngine(this, level)
+                : new HumanEngine(humanInput, app.isAndroid));
         PlayerActor playerA = new PlayerActor(this, engineA, theme().player_a);
         playerA.pos.set(320f, 540f);
         playerA.state = move;
         myGroup.addPlayer(playerA);
 
-        PlayerEngine engineB = new ComputerEngine(this, level);
+        PlayerEngine engineB = engineBFactory != null ? engineBFactory.create(this)
+                : new ComputerEngine(this, level);
         PlayerActor playerB = new PlayerActor(this, engineB, theme().player_b);
         playerB.pos.set(320f, 100f);
         playerB.state = move;
@@ -119,27 +139,27 @@ public class GameSystem {
     }
 
     public float random(float hi) {
-        return MathUtils.random(hi);
+        return rng != null ? rng.nextFloat() * hi : MathUtils.random(hi);
     }
 
     public float random(float lo, float hi) {
-        return MathUtils.random(lo, hi);
+        return rng != null ? lo + rng.nextFloat() * (hi - lo) : MathUtils.random(lo, hi);
     }
 
     // ---- 音效（MusicAsset 还原；lFireHurt 原作仅加载未播放，这里接到受击/击杀）----
     public void playSFire() {
-        if (app.sFire != null) app.sFire.play(app.volume * 0.3f);
+        if (!muted && app.sFire != null) app.sFire.play(app.volume * 0.3f);
     }
 
     public void playLFire() {
-        if (app.lFire != null) app.lFire.play(app.volume);
+        if (!muted && app.lFire != null) app.lFire.play(app.volume);
     }
 
     public void playLongShotCharged() {
-        if (app.longShotCharged != null) app.longShotCharged.play(app.volume);
+        if (!muted && app.longShotCharged != null) app.longShotCharged.play(app.volume);
     }
 
     public void playHurt() {
-        if (app.lFireHurt != null) app.lFireHurt.play(app.volume);
+        if (!muted && app.lFireHurt != null) app.lFireHurt.play(app.volume);
     }
 }
