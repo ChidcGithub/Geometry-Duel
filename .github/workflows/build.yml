@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ['*']
   pull_request:
     branches: [main]
 
@@ -50,7 +50,7 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
 
     steps:
@@ -59,13 +59,24 @@ jobs:
         with:
           name: app-debug
 
+      - name: Determine prerelease
+        id: meta
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" == v* ]]; then
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             app-debug.apk
+          prerelease: ${{ steps.meta.outputs.prerelease }}
           body: |
-            Geometry Duel release ${{ github.ref_name }}
+            Geometry Duel ${{ github.ref_name }}
 
             Install `app-debug.apk` on your Android device to play.
           generate_release_notes: true
