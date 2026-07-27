@@ -100,11 +100,15 @@ public class NeatTrainer {
         paused = p;
     }
 
-    /** 玩家实战结果上报：打赢玩家重奖 +100（≈一场模拟胜利），输掉 -30；含技能小奖。 */
+    /**
+     * 玩家实战结果上报：打赢玩家重奖 +1000（强烈信号：实战胜利远高于一切模拟指标），
+     * 输掉 -30；传送→5秒内击杀玩家的连击 +20/次（不衰减）；含技能小奖。
+     */
     public void reportRealMatch(MatchStats m) {
-        realMatchBonus += (m.aiWon ? 100f : -30f)
+        realMatchBonus += (m.aiWon ? 1000f : -30f)
                 + Math.min(m.longShotsFired, 10) * 2f
-                + Math.min(m.teleportsUsed, 8) * 1f;
+                + Math.min(m.teleportsUsed, 8) * 1f
+                + m.teleportKills * 20f;
     }
 
     /** 录入一局玩家行为录像（幽灵陪练），FIFO 保留最近 MAX_GHOSTS 局并落盘。 */
@@ -196,37 +200,28 @@ public class NeatTrainer {
         return 0.2f + 2.8f * (float) Math.exp(-generation / 80.0);
     }
 
-    /**
-     * 传送奖励的独立衰减：线性 1→0，gen 60 后彻底归零。
-     * 传送「按两下」极易刷分，只在早期引导使用，之后由胜负分决定其价值。
-     */
-    public static float teleportShaping(int generation) {
-        return Math.max(0f, 1f - generation / 60f);
-    }
-
     private void runGeneration() {
         NeatEvolver ev = evolver;
         ArrayList<Genome> pop = ev.population;
         float[] fitness = new float[pop.size()];
         float shaping = shapingScale(generation);
-        float tpScale = teleportShaping(generation);
         for (int i = 0; i < pop.size(); i++) {
             if (stopped || paused || ev != evolver) return; // 代中止：不进化，下轮重跑
             Genome g = pop.get(i);
             float f = 0f;
             int n = 0;
-            f += simulate(g, null, null).fitness(shaping, tpScale); // vs 规则 AI
+            f += simulate(g, null, null).fitness(shaping); // vs 规则 AI
             n++;
             simMatches++;
             Genome hof = hallOfFame;
             if (hof != null) {
-                f += simulate(g, hof, null).fitness(shaping, tpScale); // vs 上代冠军
+                f += simulate(g, hof, null).fitness(shaping); // vs 上代冠军
                 n++;
                 simMatches++;
             }
             GhostData ghost = pickGhost();
             if (ghost != null) {
-                f += simulate(g, null, ghost).fitness(shaping, tpScale); // vs 玩家影子
+                f += simulate(g, null, ghost).fitness(shaping); // vs 玩家影子
                 n++;
                 simMatches++;
             }

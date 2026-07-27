@@ -13,23 +13,24 @@ public class MatchStats {
     public int shotsFired;      // 射出的短箭数
     public int longShotsFired;  // 射出的长箭数（大招）
     public int teleportsUsed;   // 传送（闪避）使用次数
+    public int teleportKills;   // 传送后 5 秒内击杀对手的次数（连击）
 
     /**
      * 适应度：胜利大分 + 存活时间 + 命中奖励 - 受击惩罚 + 技能使用行为奖励。
      * 行为奖励（reward shaping）带封顶、权重远小于胜负/命中：
      * 引导网络先学会「会用技能」，再由胜负大分主导进化，避免学会刷招。
      *
-     * @param shaping       课程式系数：前期 >1 强行引导技能使用，随世代衰减到 0.2 保底
-     * @param teleportScale 传送奖励的独立衰减（1→0）：传送极易刷分，奖励应尽早归零
+     * @param shaping 课程式系数：前期 >1 强行引导技能使用，随世代衰减到 0.2 保底
      */
-    public float fitness(float shaping, float teleportScale) {
+    public float fitness(float shaping) {
         float f = aiWon ? 100f : 0f;
         f += Math.min(frames, 7200) / 7200f * 20f;
         f += hitsDealt * 15f;
         f -= hitsTaken * 5f;
         f += Math.min(shotsFired, 40) * 0.5f * shaping;
         f += Math.min(longShotsFired, 10) * 8f * shaping; // 大招重奖（8/支）
-        f += Math.min(teleportsUsed, 8) * 2f * shaping * teleportScale; // 闪避轻奖且加速衰减
+        f += Math.min(teleportsUsed, 8) * 2f * shaping;   // 闪避轻奖（随课程衰减但不归零）
+        f += teleportKills * 20f; // 传送→5秒内击杀连击：+20，不衰减，鼓励「闪避是为了进攻」
         // 超时惩罚：对战时间超过 60 秒仍未分出胜负，分数开始线性降低（-2 分/秒），
         // 2 分钟打满时 -120 分已超过胜利分——逼迫 AI 主动进攻尽快击杀，而非拖时间
         int playFrames = frames - COUNTDOWN_FRAMES;
@@ -39,8 +40,8 @@ public class MatchStats {
         return f;
     }
 
-    /** 无课程缩放（shaping=1，传送不衰减）。 */
+    /** 无课程缩放（shaping=1）。 */
     public float fitness() {
-        return fitness(1f, 1f);
+        return fitness(1f);
     }
 }
