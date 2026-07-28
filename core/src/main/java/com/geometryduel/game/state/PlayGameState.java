@@ -84,16 +84,21 @@ public class PlayGameState extends GameSystemState {
     }
 
     public void killPlayer(PlayerActor p) {
-        system.particles.addSquareParticles(p.pos.x, p.pos.y, 50, 16f, 2f, 10f, 4f,
-                system.theme().squareParticles);
+        // 无头训练模拟不需要特效：跳过 50 个粒子分配与震屏
+        if (!system.muted) {
+            system.particles.addSquareParticles(p.pos.x, p.pos.y, 50, 16f, 2f, 10f, 4f,
+                    system.theme().squareParticles);
+            system.screenShakeValue = 50f;
+        }
         p.group.removePlayer(p);
-        system.screenShakeValue = 50f;
         system.playHurt();
     }
 
     public void breakArrow(ArrowActor a, ActorGroup group) {
-        system.particles.addSquareParticles(a.pos.x, a.pos.y, 10, 7f, 1f, 5f, 1f,
-                system.theme().squareParticles);
+        if (!system.muted) {
+            system.particles.addSquareParticles(a.pos.x, a.pos.y, 10, 7f, 1f, 5f, 1f,
+                    system.theme().squareParticles);
+        }
         group.breakArrow(a);
     }
 

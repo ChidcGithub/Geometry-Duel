@@ -229,6 +229,8 @@ public class NeatTrainer {
 
     private Genome pickChampion() {
         if (championPool.isEmpty()) return null;
+        // 50% 取最新冠军（通常最强），50% 从池中随机（保持对手多样性）
+        if (championPool.size() == 1 || rng.nextBoolean()) return championPool.get(0);
         return championPool.get(rng.nextInt(championPool.size()));
     }
 
@@ -481,12 +483,14 @@ public class NeatTrainer {
                                 final GhostData ghost, final float level, final Random rngLocal) {
         final int rays = rayCount;
 
-        // ---- 池化引擎 A (被评估 AI) ----
+        // ---- 池化引擎 A (被评估 AI)：同基因组多局只构建一次网络 ----
         NeatEngine engA = pooledEngineA.get();
         if (engA == null || engA.rayCount() != rays) {
             engA = new NeatEngine(candidate, rays);
             pooledEngineA.set(engA);
-        } else engA.setGenome(candidate, rays);
+        } else if (engA.genome() != candidate) {
+            engA.setGenome(candidate, rays);
+        }
         engA.reset();
         // 训练与实战推理频率保持一致（AI Speed 设置）
         engA.setSkipFrames(app.aiSpeed + 1);
@@ -503,7 +507,9 @@ public class NeatTrainer {
             if (engB == null || engB.rayCount() != rays) {
                 engB = new NeatEngine(vsGenome, rays);
                 pooledEngineB.set(engB);
-            } else engB.setGenome(vsGenome, rays);
+            } else if (engB.genome() != vsGenome) {
+                engB.setGenome(vsGenome, rays);
+            }
             engB.reset();
             engB.setSkipFrames(app.aiSpeed + 1);
             final NeatEngine eB = engB;

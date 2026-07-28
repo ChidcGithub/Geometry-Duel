@@ -58,10 +58,17 @@ public class NeatStorage {
             d.nextNode = evolver.counter.nextNode;
             d.champion = champion;
             d.population = evolver.population;
-            Gdx.files.local(FILE).writeString(new Json().toJson(d), false);
+            writeAtomic(Gdx.files.local(FILE), new Json().toJson(d));
         } catch (Throwable t) {
             Gdx.app.error("NeatStorage", "save failed", t);
         }
+    }
+
+    /** 原子写入：先写临时文件再重命名，防止进程中断留下半个 JSON 损毁全部训练成果。 */
+    private static void writeAtomic(FileHandle target, String content) {
+        FileHandle tmp = Gdx.files.local(target.name() + ".tmp");
+        tmp.writeString(content, false);
+        tmp.moveTo(target);
     }
 
     public static void clear() {
@@ -106,7 +113,7 @@ public class NeatStorage {
             GhostSave d = new GhostSave();
             d.version = VERSION;
             d.ghosts = new ArrayList<GhostData>(ghosts);
-            Gdx.files.local(GHOST_FILE).writeString(new Json().toJson(d), false);
+            writeAtomic(Gdx.files.local(GHOST_FILE), new Json().toJson(d));
         } catch (Throwable t) {
             Gdx.app.error("NeatStorage", "save ghosts failed", t);
         }

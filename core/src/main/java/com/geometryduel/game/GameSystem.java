@@ -118,7 +118,7 @@ public class GameSystem {
     }
 
     public void update() {
-        background.update();
+        if (!muted) background.update(); // 无头模拟跳过背景动画
         currentState.update();
         frameCount++;
     }

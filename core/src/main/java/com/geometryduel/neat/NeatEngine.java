@@ -17,11 +17,13 @@ public class NeatEngine extends PlayerEngine {
     private final float[] outputs;
     private int skipCounter;
     private int engineRayCount;
+    private Genome currentGenome;
 
     public NeatEngine(Genome genome, int rayCount) {
         this.engineRayCount = rayCount;
         this.sensor = new VisionSensor(rayCount);
         this.net = new NeatNetwork(genome, sensor.inputSize() + 1, 5);
+        this.currentGenome = genome;
         this.inputs = new float[sensor.inputSize() + 1];
         this.outputs = new float[5];
         this.inputs[this.inputs.length - 1] = 1f;
@@ -33,6 +35,8 @@ public class NeatEngine extends PlayerEngine {
     }
 
     public int rayCount() { return engineRayCount; }
+    /** 当前网络对应的基因组（身份比较，供调用方跳过重复构建）。 */
+    public Genome genome() { return currentGenome; }
 
     public void setSkipFrames(int n) { this.skipFrames = n; }
     public int skipFrames() { return skipFrames; }
@@ -46,6 +50,7 @@ public class NeatEngine extends PlayerEngine {
             this.inputs[this.inputs.length - 1] = 1f;
         }
         this.net = new NeatNetwork(genome, sensor.inputSize() + 1, 5);
+        this.currentGenome = genome;
         this.skipCounter = 0;
     }
 

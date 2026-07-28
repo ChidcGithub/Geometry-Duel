@@ -114,7 +114,7 @@ public class NeatEvolver {
             }
         }
 
-        // 计算每个物种的最优个体
+        // 计算每个物种的最优个体；代表基因组随机重选（经典 NEAT，避免首个划入者偏差）
         for (int s = 0; s < species.size(); s++) {
             SpeciesInfo si = species.get(s);
             si.bestFitness = -Float.MAX_VALUE;
@@ -122,6 +122,7 @@ public class NeatEvolver {
                 if (fitness[idx] > si.bestFitness) { si.bestFitness = fitness[idx]; si.bestIndex = idx; }
             }
             si.best = population.get(si.bestIndex);
+            si.representative = population.get(si.members.get(rng.nextInt(si.members.size())));
             si.strategyLabel = labelSpecies(si, fitness);
         }
 
@@ -208,6 +209,12 @@ public class NeatEvolver {
     /** 使用基因组自身的突变率 (B)。轮盘按各率之和归一化，保证所有变异类型按设定比例发生。 */
     private void mutateWithOwnRates(Genome g) {
         g.mutateMutationRates(rng); // 先变异突变率本身
+        if (stagnantGenerations > 8) {
+            // 反停滞：适应度长期无提升时放大结构变异，帮助跳出局部最优
+            g.mutationPower = Math.min(1.5f, g.mutationPower * 1.3f);
+            g.addNodeProb = Math.min(0.5f, g.addNodeProb * 1.5f);
+            g.addConnProb = Math.min(0.3f, g.addConnProb * 1.5f);
+        }
         float total = g.weightMutProb + g.addNodeProb + g.addConnProb + g.toggleProb
                 + g.resetProb + g.activationProb + g.removeProb;
         float r = rng.nextFloat() * total;

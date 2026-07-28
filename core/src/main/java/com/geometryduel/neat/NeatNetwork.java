@@ -56,24 +56,50 @@ public class NeatNetwork {
             ol.add(c.out);
         }
 
-        // ---- 循环检测：构建可达性矩阵 ----
-        // reachable[from][to] = 是否存在路径（BFS）
-        boolean[][] reachable = new boolean[maxNodeId + 1][maxNodeId + 1];
-        for (int src = 0; src <= maxNodeId; src++) {
+        // ---- 循环检测：可达性矩阵按紧凑节点索引分配 ----
+        // 矩阵规模为 nodeCount² 而非 maxNodeId²（id 随进化膨胀，避免内存爆炸）
+        int nodeCount = g.nodes.size();
+        int[] idToIdx = new int[maxNodeId + 1];
+        java.util.Arrays.fill(idToIdx, -1);
+        for (int i = 0; i < nodeCount; i++) idToIdx[g.nodes.get(i).id] = i;
+
+        // 紧凑邻接表（跳过端点缺失的损坏边）
+        ArrayList<ArrayList<Integer>> outAdj = new ArrayList<ArrayList<Integer>>(nodeCount);
+        for (int i = 0; i < nodeCount; i++) outAdj.add(new ArrayList<Integer>());
+        for (int i = 0; i < g.conns.size(); i++) {
+            Genome.ConnectionGene c = g.conns.get(i);
+            if (!c.enabled) continue;
+            int fi = c.in <= maxNodeId ? idToIdx[c.in] : -1;
+            int ti = c.out <= maxNodeId ? idToIdx[c.out] : -1;
+            if (fi >= 0 && ti >= 0) outAdj.get(fi).add(ti);
+        }
+
+        // reachable[from][to] = 是否存在路径（DFS）
+        boolean[][] reachable = new boolean[nodeCount][nodeCount];
+        for (int s = 0; s < nodeCount; s++) {
             ArrayList<Integer> stack = new ArrayList<Integer>();
-            boolean[] visited = new boolean[maxNodeId + 1];
-            stack.add(src);
+            boolean[] visited = new boolean[nodeCount];
+            stack.add(s);
             while (!stack.isEmpty()) {
                 int cur = stack.remove(stack.size() - 1);
-                if (cur != src) reachable[src][cur] = true;
+                if (cur != s) reachable[s][cur] = true;
                 visited[cur] = true;
-                ArrayList<Integer> ol = outgoing.get(cur);
-                if (ol == null) continue;
+                ArrayList<Integer> ol = outAdj.get(cur);
                 for (int k = 0; k < ol.size(); k++) {
                     int next = ol.get(k);
                     if (!visited[next]) stack.add(next);
                 }
             }
+        }
+
+        // 每条使能连接是否回边：out 可达 in = cycle
+        boolean[] recurrent = new boolean[g.conns.size()];
+        for (int i = 0; i < g.conns.size(); i++) {
+            Genome.ConnectionGene c = g.conns.get(i);
+            if (!c.enabled) continue;
+            int fi = c.in <= maxNodeId ? idToIdx[c.in] : -1;
+            int ti = c.out <= maxNodeId ? idToIdx[c.out] : -1;
+            recurrent[i] = fi >= 0 && ti >= 0 && reachable[ti][fi];
         }
 
         // ---- 标记循环连接：conn is recurrent if out can reach in ----
@@ -87,7 +113,7 @@ public class NeatNetwork {
         for (int i = 0; i < g.conns.size(); i++) {
             Genome.ConnectionGene c = g.conns.get(i);
             if (!c.enabled) continue;
-            boolean isRec = reachable[c.out][c.in]; // out can reach back to in = cycle
+            boolean isRec = recurrent[i];
 
             HashMap<Integer, ArrayList<Integer>> incMap = isRec ? recInc : fwdInc;
             HashMap<Integer, ArrayList<Float>> incWMap = isRec ? recIncW : fwdIncW;
@@ -114,7 +140,7 @@ public class NeatNetwork {
         HashMap<Integer, ArrayList<Integer>> fwdOutgoing = new HashMap<Integer, ArrayList<Integer>>();
         for (int i = 0; i < g.conns.size(); i++) {
             Genome.ConnectionGene c = g.conns.get(i);
-            if (!c.enabled || reachable[c.out][c.in]) continue;
+            if (!c.enabled || recurrent[i]) continue;
             ArrayList<Integer> ol = fwdOutgoing.get(c.in);
             if (ol == null) { ol = new ArrayList<Integer>(); fwdOutgoing.put(c.in, ol); }
             ol.add(c.out);
