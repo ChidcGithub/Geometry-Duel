@@ -10,16 +10,20 @@ import com.geometryduel.game.state.ResultGameState;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 后台训练线程：无头 GameSystem 快速模拟（候选 vs 规则 AI / 冠军池 / 玩家幽灵），
  * 按适应度驱动 NeatEvolver 逐代进化；冠军基因组供玩家对局使用。
  *
  * 改进：
+ * - 多线程并行评估个体（50 个分派到线程池，充分利用多核）
  * - 每对手 3 局取平均（降低方差）
  * - 规则 AI 难度渐进（gen 0: 0.3 → gen 140: 1.0）
  * - 冠军陪练池 FIFO 5 代（保持策略多样性）
- * - 实战奖励不随时间衰减
  */
 public class NeatTrainer {
     public static final int POPULATION = 50;
@@ -31,6 +35,16 @@ public class NeatTrainer {
     private final GeometryDuelGame app;
     private final Random rng = new Random();
 
+    /** 并行评估线程池（核数 - 1，至少为 2）。 */
+    private ExecutorService threadPool;
+    /** 每线程独立 Random，避免同步开销。 */
+    private final ThreadLocal<Random> rngPerThread = new ThreadLocal<Random>() {
+        @Override
+        protected Random initialValue() {
+            return new Random();
+        }
+    };
+
     private volatile int rayCount;
     private volatile NeatEvolver evolver;
     private volatile Genome champion;
@@ -38,7 +52,7 @@ public class NeatTrainer {
 
     private volatile int generation;
     private volatile float bestFitness;
-    private volatile long simMatches;
+    private final AtomicLong simMatches = new AtomicLong();
     private volatile boolean paused;
     private volatile boolean stopped;
     private float realMatchBonus;
@@ -54,6 +68,14 @@ public class NeatTrainer {
     // ------------------------------------------------------------ 生命周期
 
     public void start() {
+        int cores = Runtime.getRuntime().availableProcessors();
+        int workers = Math.max(2, cores - 1);
+        threadPool = Executors.newFixedThreadPool(workers, r -> {
+            Thread t = new Thread(r, "neat-eval-" + r.hashCode());
+            t.setDaemon(true);
+            t.setPriority(Thread.MIN_PRIORITY + 1);
+            return t;
+        });
         thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -61,13 +83,12 @@ public class NeatTrainer {
             }
         }, "neat-trainer");
         thread.setDaemon(true);
-        thread.setPriority(Thread.MIN_PRIORITY + 1);
         thread.start();
     }
 
     public void shutdown() {
         stopped = true;
-        paused = false;
+        if (threadPool != null) threadPool.shutdownNow();
         if (thread != null) {
             try {
                 thread.join(3000);
@@ -85,14 +106,14 @@ public class NeatTrainer {
         championPool.clear();
         generation = 0;
         bestFitness = 0f;
-        simMatches = 0;
+        simMatches.set(0);
         realMatchBonus = 0f;
         evolver = newEvolver(newRayCount, null, null);
     }
 
     public void saveNow() {
         NeatEvolver ev = evolver;
-        if (ev != null) NeatStorage.save(rayCount, generation, bestFitness, simMatches, ev, champion);
+        if (ev != null) NeatStorage.save(rayCount, generation, bestFitness, simMatches.get(), ev, champion);
     }
 
     // ------------------------------------------------------------ 外部接口
@@ -101,7 +122,6 @@ public class NeatTrainer {
         paused = p;
     }
 
-    /** 玩家实战结果上报：只看输赢和传送连杀。 */
     public void reportRealMatch(MatchStats m) {
         realMatchBonus += (m.aiWon ? 1000f : -30f) + m.teleportKills * 20f;
     }
@@ -140,7 +160,7 @@ public class NeatTrainer {
     }
 
     public long simMatches() {
-        return simMatches;
+        return simMatches.get();
     }
 
     // ------------------------------------------------------------ 训练循环
@@ -167,7 +187,7 @@ public class NeatTrainer {
         if (d != null) {
             generation = d.generation;
             bestFitness = d.bestFitness;
-            simMatches = d.simMatches;
+            simMatches.set(d.simMatches);
             champion = d.champion;
             championPool.clear();
             if (champion != null) championPool.add(champion);
@@ -192,59 +212,71 @@ public class NeatTrainer {
                 : new NeatEvolver(inputCount, 5, POPULATION, population, counter, rng);
     }
 
-    /**
-     * 课程式奖励系数：gen 0 ≈ 3.0 → 指数衰减 → 0.2 保底。
-     * 行为奖励已内置软上限 30，shaping 只影响技能引导项的力度。
-     */
     public static float shapingScale(int generation) {
         return 0.2f + 2.8f * (float) Math.exp(-generation / 80.0);
     }
 
-    /** 渐进式规则 AI 难度：gen 0 → 0.3，每 20 代 +0.1，约 gen 140 达到 1.0。 */
     private static float progressiveLevel(int generation) {
         return Math.min(1.0f, 0.3f + generation * 0.005f);
     }
 
     private void runGeneration() {
-        NeatEvolver ev = evolver;
-        ArrayList<Genome> pop = ev.population;
-        float[] fitness = new float[pop.size()];
-        float shaping = shapingScale(generation);
-        float level = progressiveLevel(generation);
+        final NeatEvolver ev = evolver;
+        final ArrayList<Genome> pop = ev.population;
+        final float[] fitness = new float[pop.size()];
+        final float shaping = shapingScale(generation);
+        final float level = progressiveLevel(generation);
 
-        // 整代固定陪练（公平比较同代内所有个体）
         final GhostData ghost = pickGhost();
         final Genome champOpponent = pickChampion();
 
-        // 秒拍实战奖励，本轮结束时加到最优个体上
-        float bonusToApply = realMatchBonus;
+        final float bonusToApply = realMatchBonus;
         realMatchBonus = 0f;
 
-        for (int i = 0; i < pop.size(); i++) {
-            if (stopped || paused || ev != evolver) return;
-            Genome g = pop.get(i);
-            float f = 0f;
-            int n = 0;
+        final int total = pop.size();
+        final CountDownLatch latch = new CountDownLatch(total);
 
-            f += evaluate(g, null, null, shaping, level);
-            n++;
-            simMatches += SIMS_PER_MATCH;
+        for (int i = 0; i < total; i++) {
+            final int index = i;
+            final Genome g = pop.get(i);
+            threadPool.execute(new Runnable() {
+                @Override
+                public void run() {
+                    if (stopped || paused || ev != evolver) {
+                        latch.countDown();
+                        return;
+                    }
+                    float f = 0f;
+                    int n = 0;
 
-            if (champOpponent != null) {
-                f += evaluate(g, champOpponent, null, shaping, 1.0f);
-                n++;
-                simMatches += SIMS_PER_MATCH;
-            }
+                    f += evaluate(g, null, null, shaping, level);
+                    n++;
+                    simMatches.addAndGet(SIMS_PER_MATCH);
 
-            if (ghost != null) {
-                f += evaluate(g, null, ghost, shaping, 1.0f);
-                n++;
-                simMatches += SIMS_PER_MATCH;
-            }
+                    if (champOpponent != null) {
+                        f += evaluate(g, champOpponent, null, shaping, 1.0f);
+                        n++;
+                        simMatches.addAndGet(SIMS_PER_MATCH);
+                    }
 
-            f /= n;
-            fitness[i] = f;
+                    if (ghost != null) {
+                        f += evaluate(g, null, ghost, shaping, 1.0f);
+                        n++;
+                        simMatches.addAndGet(SIMS_PER_MATCH);
+                    }
+
+                    fitness[index] = f / n;
+                    latch.countDown();
+                }
+            });
         }
+
+        try {
+            latch.await();
+        } catch (InterruptedException ignored) {
+        }
+
+        if (stopped || ev != evolver) return;
 
         int best = 0;
         for (int i = 1; i < fitness.length; i++) {
@@ -264,18 +296,18 @@ public class NeatTrainer {
         generation++;
     }
 
-    /** 同一对手打 SIMS_PER_MATCH 局，返回平均适应度。 */
     private float evaluate(Genome candidate, Genome vsGenome, GhostData ghost,
                            float shaping, float level) {
+        Random r = rngPerThread.get();
         float sum = 0f;
         for (int i = 0; i < SIMS_PER_MATCH; i++) {
-            sum += simulate(candidate, vsGenome, ghost, level).fitness(shaping);
+            sum += simulate(candidate, vsGenome, ghost, level, r).fitness(shaping);
         }
         return sum / SIMS_PER_MATCH;
     }
 
     private MatchStats simulate(final Genome candidate, final Genome vsGenome,
-                                final GhostData ghost, final float level) {
+                                final GhostData ghost, final float level, final Random rngLocal) {
         final int rays = rayCount;
         GameSystem.EngineFactory engineA = new GameSystem.EngineFactory() {
             @Override
@@ -292,7 +324,7 @@ public class NeatTrainer {
             }
         };
         GameSystem sys = new GameSystem(app, false, false, 1.0f, null,
-                engineA, engineB, true, new Random(rng.nextLong()));
+                engineA, engineB, true, new Random(rngLocal.nextLong()));
         MatchTracker tracker = new MatchTracker(sys.myGroup);
         while (!(sys.currentState instanceof ResultGameState) && sys.frameCount < MAX_MATCH_FRAMES) {
             sys.update();
