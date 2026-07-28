@@ -11,7 +11,7 @@ import com.geometryduel.game.state.DrawLongbowState;
  * 叠加 9 项全局状态。
  */
 public class VisionSensor {
-    public static final int GLOBAL_INPUTS = 9;
+    public static final int GLOBAL_INPUTS = 14;  // 从9增加到14（1.5：增强感知）
     private static final float MAX_SIGHT = 860f;
     private static final float MAX_SPEED = 64f;
 
@@ -110,6 +110,28 @@ public class VisionSensor {
         out[g + 7] = (enemy != null && enemy.state instanceof DrawLongbowState) ? 1f : 0f;
         out[g + 8] = (enemy != null && enemy.state.isDamaged())
                 ? enemy.damageRemainingFrameCount / (float) DamagedState.DURATION : 0f;
+
+        // ---- 1.5：新增感知信息 ----
+        // 自身位置归一化（0-1）
+        out[g + 9] = (px - 16f) / 608f;  // x位置
+        out[g + 10] = (py - 16f) / 608f;  // y位置
+
+        // 距离最近墙壁的距离（归一化，越小越危险）
+        float distLeft = px - 16f;
+        float distRight = 624f - px;
+        float distTop = py - 16f;
+        float distBottom = 624f - py;
+        float minWallDist = Math.min(Math.min(distLeft, distRight), Math.min(distTop, distBottom));
+        out[g + 11] = minWallDist / 320f;  // 归一化到0-1
+
+        // 自身速度大小（归一化）
+        float speed = (float) Math.sqrt(self.vel.x * self.vel.x + self.vel.y * self.vel.y);
+        out[g + 12] = Math.min(1f, speed / 10f);  // 最大速度约10
+
+        // 中心区域标记（1=在中心区域，0=不在）
+        // 中心区域定义为200-440范围内
+        boolean inCenter = px > 200f && px < 440f && py > 200f && py < 440f;
+        out[g + 13] = inCenter ? 1f : 0f;
     }
 
     private static float rayCircle(float px, float py, float dx, float dy,

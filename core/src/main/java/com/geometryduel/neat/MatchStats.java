@@ -60,7 +60,7 @@ public class MatchStats {
         f += hitsDealt * 15f;
         f -= hitsTaken * 10f;  // 受击翻倍（-5→-10，角落更容易被瞄准）
         f -= wallRatio * 60f;
-        f -= enemyLongbowAimFrames / (float) playFrames * 30f;  // 被敌人大招瞄准=危险  // 从40提升至60
+        f -= enemyLongbowAimFrames / (float) playFrames * 30f;
 
         // —— 精度奖励 (1.3) ——
         f += longShotsHit * 20f * shaping;

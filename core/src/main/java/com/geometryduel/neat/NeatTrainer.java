@@ -320,7 +320,9 @@ public class NeatTrainer {
             });
         }
 
-        // 2. 同代对战（2轮）
+        try { latch.await(); } catch (InterruptedException e) { return; }
+
+        // 2. 同代对战（2轮）—— 等主评估全完成再提交，避免竞态覆盖
         int sameGenTasks = 2 * (total / 2);
         final CountDownLatch sameGenLatch = new CountDownLatch(sameGenTasks);
         for (int round = 0; round < 2; round++) {
@@ -340,7 +342,6 @@ public class NeatTrainer {
             }
         }
 
-        try { latch.await(); } catch (InterruptedException e) { return; }
         try { sameGenLatch.await(); } catch (InterruptedException e) { return; }
         if (stopped || resetting) return;
 

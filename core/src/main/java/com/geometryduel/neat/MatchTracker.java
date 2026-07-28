@@ -21,7 +21,6 @@ public class MatchTracker {
     private int frame;
     private int lastRecallFrame = -COMBO_WINDOW;
     private boolean enemyWasAlive;
-    private int prevEnemyDamage;
     private int lastAttackType; // 0=none, 1=shortbow, 2=longbow
 
     // counts
@@ -85,16 +84,10 @@ public class MatchTracker {
         // ---- 传送追踪 ----
         if (p != null) {
             int newRecalls = p.teleportRecallCount - prevRecallCount;
-            if (newRecalls > 0) {
+        if (newRecalls > 0) {
                 lastRecallFrame = frame;
                 lastTeleportFrame = frame;  // 记录传送时刻 (1.5)
                 teleportsUsed += newRecalls;
-
-                // 传送后120帧内击杀=攻防一体
-                if (enemyWasAlive && !isEnemyAlive(enemy)
-                        && frame - lastRecallFrame <= 120) {
-                    teleportHitDefense++;
-                }
 
                 // 传送躲避：传送时附近有敌方箭
                 ArrayList<ArrowActor> enemyArrows = group.enemyGroup != null
@@ -119,20 +112,14 @@ public class MatchTracker {
         if (enemyWasAlive && !enemyAliveNow && frame - lastRecallFrame <= COMBO_WINDOW) {
             teleportKills++;
         }
+        if (enemyWasAlive && !enemyAliveNow && frame - lastRecallFrame <= 120) {
+            teleportHitDefense++;
+        }
         if (enemyWasAlive && !enemyAliveNow) {
             longShotsHit++; // 敌方消失=被击杀（长弓是唯一一击必杀方式）
             lastKillFrame = frame;  // 记录击杀时刻 (1.5)
         }
         enemyWasAlive = enemyAliveNow;
-
-        // ---- 受击追踪：敌人受击增加=传送躲闪反击 ----
-        if (enemy != null && group.enemyGroup != null) {
-            int nowDmg = group.enemyGroup.damageCount;
-            if (nowDmg > prevEnemyDamage && frame - lastRecallFrame <= 120) {
-                // 传送后反击敌人成功
-            }
-            prevEnemyDamage = nowDmg;
-        }
 
         // ---- 大招瞄准追踪 ----
         if (p != null && enemy != null && p.state instanceof DrawLongbowState) {
