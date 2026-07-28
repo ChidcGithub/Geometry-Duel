@@ -11,7 +11,7 @@ import com.geometryduel.game.state.DrawLongbowState;
  * 叠加 9 项全局状态。
  */
 public class VisionSensor {
-    public static final int GLOBAL_INPUTS = 14;  // 从9增加到14（1.5：增强感知）
+    public static final int GLOBAL_INPUTS = 15;  // +1 enemy longbow aim danger direction
     private static final float MAX_SIGHT = 860f;
     private static final float MAX_SPEED = 64f;
 
@@ -132,6 +132,17 @@ public class VisionSensor {
         // 中心区域定义为200-440范围内
         boolean inCenter = px > 200f && px < 440f && py > 200f && py < 440f;
         out[g + 13] = inCenter ? 1f : 0f;
+
+        // 敌人长弓瞄准危险度：0=不蓄力，>0=敌人正在瞄自己
+        if (enemy != null && enemy.state instanceof DrawLongbowState) {
+            float want = (float) Math.atan2(py - enemy.pos.y, px - enemy.pos.x);
+            float err = enemy.aimAngle - want;
+            while (err > 3.1415927f) err -= 6.2831855f;
+            while (err < -3.1415927f) err += 6.2831855f;
+            out[g + 14] = 1f - Math.abs(err) / 3.1415927f;
+        } else {
+            out[g + 14] = 0f;
+        }
     }
 
     private static float rayCircle(float px, float py, float dx, float dy,

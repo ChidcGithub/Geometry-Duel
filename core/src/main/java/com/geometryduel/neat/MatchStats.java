@@ -86,16 +86,9 @@ public class MatchStats {
         moveBonus += positionDiversity * 5f;  // 位置多样性奖励
         f += moveBonus;
 
-        // —— 混合回放关键时刻奖励 (1.5) ——
-        // 关键时刻表现给予额外权重，增强模型对重要局面的注意力
+        // —— 关键时刻：处于关键时刻=积极战斗，奖励活跃度 (1.5) ——
         float keyMomentRatio = keyMomentFrames / (float) playFrames;
-        if (keyMomentRatio > 0f) {
-            float keyMomentBonus = 0f;
-            // 关键时刻的命中/击杀获得更高奖励
-            keyMomentBonus += hitsDealt * 5f * keyMomentRatio;  // 关键时刻命中额外奖励
-            keyMomentBonus += (aiWon ? 20f : 0f) * keyMomentRatio;  // 关键时刻获胜额外奖励
-            f += keyMomentBonus;
-        }
+        f += keyMomentRatio * 15f;  // 越活跃（传送/蓄力/击杀附近），越奖励
 
         // —— 行为项（cap 50） ——
         float behavior = 0f;
