@@ -15,6 +15,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class NeatTrainer {
@@ -61,6 +62,8 @@ public class NeatTrainer {
     private volatile boolean stopped;
     private volatile boolean resetting;
     private volatile boolean converged;
+    /** 自适应课程：对规则AI的当前难度（0.3~1.0），按每代胜率动态升降。 */
+    private float curriculumLevel = 0.3f;
     /** 重置请求：由渲染线程发起、训练线程执行，避免在 UI 线程做重活。 */
     private volatile boolean resetRequested;
     private volatile int pendingRayCount;
@@ -167,6 +170,7 @@ public class NeatTrainer {
                 fitnessHistory.clear();
                 evolver = newEvolver(newRayCount, null, null);
                 noveltyArchive.clear();
+                curriculumLevel = 0.3f;
             } finally {
                 resetting = false;
             }
@@ -228,21 +232,21 @@ public class NeatTrainer {
 
     public int ghostCount() { return ghosts.size(); }
 
-    private GhostData pickGhost() {
+    private GhostData pickGhost(Random r) {
         if (ghosts.isEmpty()) return null;
-        return ghosts.get(rng.nextInt(ghosts.size()));
+        return ghosts.get(r.nextInt(ghosts.size()));
     }
 
-    private Genome pickChampion() {
+    private Genome pickChampion(Random r) {
         if (championPool.isEmpty()) return null;
         // 50% 取最新冠军（通常最强），50% 从池中随机（保持对手多样性）
-        if (championPool.size() == 1 || rng.nextBoolean()) return championPool.get(0);
-        return championPool.get(rng.nextInt(championPool.size()));
+        if (championPool.size() == 1 || r.nextBoolean()) return championPool.get(0);
+        return championPool.get(r.nextInt(championPool.size()));
     }
 
-    private Genome pickHistoricalChampion() {
+    private Genome pickHistoricalChampion(Random r) {
         if (historicalChampions.isEmpty()) return null;
-        return historicalChampions.get(rng.nextInt(historicalChampions.size()));
+        return historicalChampions.get(r.nextInt(historicalChampions.size()));
     }
 
     public Genome currentChampion() { return champion; }
@@ -310,7 +314,10 @@ public class NeatTrainer {
             if (champion != null) championPool.add(champion);
             evolver = newEvolver(rayCount, d.population,
                     new Genome.InnovationCounter(d.nextInnovation, d.nextNode));
-            Gdx.app.log("NeatTrainer", "loaded gen " + generation + " best " + bestFitness);
+            // 按已训练的代数估计课程起点，避免老存档从 0.3 重新爬坡
+            curriculumLevel = progressiveLevel(generation);
+            Gdx.app.log("NeatTrainer", "loaded gen " + generation + " best " + bestFitness
+                    + " curriculum " + String.format("%.2f", curriculumLevel));
         } else {
             evolver = newEvolver(rayCount, null, null);
         }
@@ -345,11 +352,7 @@ public class NeatTrainer {
         final ArrayList<Genome> pop = ev.population;
         final float[] fitness = new float[pop.size()];
         final float shaping = shapingScale(generation);
-        final float level = progressiveLevel(generation);
-
-        final GhostData ghost = pickGhost();
-        final Genome champOpponent = pickChampion();
-        final Genome histChampion = pickHistoricalChampion();
+        final float level = curriculumLevel;
 
         final float bonusToApply = realMatchBonus;
         realMatchBonus = 0f;
@@ -358,6 +361,7 @@ public class NeatTrainer {
         final CountDownLatch latch = new CountDownLatch(total);
         final CopyOnWriteArrayList<Genome> popView = new CopyOnWriteArrayList<Genome>(pop);
         final BehaviorSignature[] sigs = new BehaviorSignature[total];
+        final AtomicInteger ruleWins = new AtomicInteger();
 
         // 1. 主评估：每个体 vs 规则AI + 冠军 + 幽灵 + 历史冠军
         for (int i = 0; i < total; i++) {
@@ -365,18 +369,24 @@ public class NeatTrainer {
             final Genome g = pop.get(i);
             threadPool.execute(() -> {
                 if (stopped || paused || resetting) { latch.countDown(); return; }
+                final Random r = rngPerThread.get();
                 float f = 0f;
                 int n = 0;
 
                 // 第一局 vs 规则AI：捕获行为签名 (C)
-                MatchStats firstStats = simulate(g, null, null, level, rngPerThread.get());
+                MatchStats firstStats = simulate(g, null, null, level, r);
+                if (firstStats.aiWon) ruleWins.addAndGet(1);
                 f += firstStats.fitness(shaping); n++;
                 sigs[index] = BehaviorSignature.from(firstStats, g);
                 simMatches.addAndGet(1);
                 for (int s = 1; s < dynamicSimsPerMatch; s++) {
-                    f += simulate(g, null, null, level, rngPerThread.get()).fitness(shaping); n++;
+                    f += simulate(g, null, null, level, r).fitness(shaping); n++;
                     simMatches.addAndGet(1);
                 }
+                // 每个体独立随机抽取对手，降低全种群对单一对手风格的相关性过拟合
+                final Genome champOpponent = pickChampion(r);
+                final GhostData ghost = pickGhost(r);
+                final Genome histChampion = pickHistoricalChampion(r);
                 if (champOpponent != null) { f += evaluate(g, champOpponent, null, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
                 if (ghost != null) { f += evaluate(g, null, ghost, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
                 if (histChampion != null) { f += evaluate(g, histChampion, null, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
@@ -400,6 +410,18 @@ public class NeatTrainer {
         try { latch.await(); } catch (InterruptedException e) { return; }
         // 暂停/停止/重置时中止本代，避免残缺适应度（跳过个体=0分）污染进化
         if (stopped || paused || resetting) return;
+
+        // 自适应课程：按本代对规则AI胜率动态升降难度
+        float winRate = ruleWins.get() / (float) total;
+        float oldLevel = curriculumLevel;
+        if (winRate > 0.65f) curriculumLevel += 0.02f;
+        else if (winRate > 0.5f) curriculumLevel += 0.008f;
+        else if (winRate < 0.3f) curriculumLevel -= 0.01f;
+        curriculumLevel = Math.max(0.3f, Math.min(1.0f, curriculumLevel));
+        if (curriculumLevel != oldLevel)
+            Gdx.app.log("NeatTrainer", "curriculum " + String.format("%.2f", oldLevel)
+                    + " -> " + String.format("%.2f", curriculumLevel)
+                    + " (winRate " + String.format("%.2f", winRate) + ")");
 
         // 2. 同代对战（2轮）—— 等主评估全完成再提交，避免竞态覆盖
         int sameGenTasks = 2 * (total / 2);
