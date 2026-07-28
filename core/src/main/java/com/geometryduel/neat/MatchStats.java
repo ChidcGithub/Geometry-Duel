@@ -33,33 +33,32 @@ public class MatchStats {
      * @param shaping 课程式系数（前期高，引导技能探索；后期低，由胜负主导）
      */
     public float fitness(float shaping) {
-        // —— 效果项：分量重、无上限 ——
+        int playFrames = Math.max(1, frames - COUNTDOWN_FRAMES);
+        float wallRatio = campFrames / (float) playFrames;
+        if (wallRatio > 1f) wallRatio = 1f;
+
+        // —— 效果项 ——
         float f = aiWon ? 100f : 0f;
-        f += Math.min(frames, 7200) / 7200f * 40f;
+        // 存活分：露营时缩水（wallRatio=0.8 → 存活分只值 20%）
+        f += Math.min(frames, 7200) / 7200f * 40f * (1f - wallRatio * 0.8f);
         f += hitsDealt * 15f;
         f -= hitsTaken * 5f;
+        // 露营惩罚：直接扣分
+        f -= wallRatio * 40f;
 
-        // —— 行为项：轻量引导，总和封顶 30 ——
+        // —— 行为项 ——
         float behavior = 0f;
         behavior += Math.min(longShotsFired, 5) * 3f * shaping;
         behavior += Math.min(teleportsUsed, 3) * 1f * shaping;
-        behavior += teleportKills * 20f;                   // 传送连杀不参与 cap（含金量高）
+        behavior += teleportKills * 20f;
         behavior += Math.min(aimedFrames, 300) * 0.03f * shaping;
-        // 不含 teleportKills 的软上限
         float nonComboCap = behavior - teleportKills * 20f;
         if (nonComboCap > BEHAVIOR_CAP) behavior = BEHAVIOR_CAP + teleportKills * 20f;
         f += behavior;
 
         // —— 超时惩罚 ——
-        int playFrames = frames - COUNTDOWN_FRAMES;
         if (playFrames > QUICK_WIN_FRAMES) {
             f -= (playFrames - QUICK_WIN_FRAMES) / 60f * OVERTIME_PENALTY_PER_SEC;
-        }
-
-        // —— 露营惩罚：角落缩着不动靠自动瞄准蹭分是死路 ——
-        if (playFrames > 0) {
-            float wallRatio = Math.min(1f, campFrames / (float) playFrames);
-            f -= wallRatio * 30f;
         }
         return f;
     }
