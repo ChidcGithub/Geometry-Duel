@@ -452,12 +452,12 @@ public class NeatTrainer {
         engA.reset();
         final NeatEngine engineA = engA;
 
-        // ---- 池化引擎 B (对手) ----
-        final PlayerEngine engineB;
+        // ---- 引擎 B (对手) ----
+        final GameSystem.EngineFactory factoryB;
         if (ghost != null) {
             ReplayEngine rp = new ReplayEngine(ghost);
             rp.reset();
-            engineB = rp;
+            factoryB = s -> rp;
         } else if (vsGenome != null) {
             NeatEngine engB = pooledEngineB.get();
             if (engB == null || engB.rayCount() != rays) {
@@ -465,13 +465,14 @@ public class NeatTrainer {
                 pooledEngineB.set(engB);
             } else engB.setGenome(vsGenome, rays);
             engB.reset();
-            engineB = engB;
+            final NeatEngine eB = engB;
+            factoryB = s -> eB;
         } else {
-            engineB = new ComputerEngine(null, level);
+            factoryB = s -> new ComputerEngine(s, level);
         }
 
         GameSystem sys = new GameSystem(app, false, false, 1.0f, null,
-                s -> engineA, s -> engineB, true, new Random(rngLocal.nextLong()));
+                s -> engineA, factoryB, true, new Random(rngLocal.nextLong()));
 
         // ---- 池化 Stats/Tracker ----
         MatchTracker tracker = pooledTracker.get();
