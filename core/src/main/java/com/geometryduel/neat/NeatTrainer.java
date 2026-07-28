@@ -554,7 +554,9 @@ public class NeatTrainer {
         if (tracker == null) { tracker = new MatchTracker(sys.myGroup); pooledTracker.set(tracker); }
         else tracker.reset(sys.myGroup);
 
-        while (!(sys.currentState instanceof ResultGameState) && sys.frameCount < MAX_MATCH_FRAMES) {
+        // 无头模拟已跳过开局倒计时：循环上限为纯对战帧数，统计帧数补偿回倒计时
+        final int maxBattleFrames = MAX_MATCH_FRAMES - MatchStats.COUNTDOWN_FRAMES;
+        while (!(sys.currentState instanceof ResultGameState) && sys.frameCount < maxBattleFrames) {
             sys.update();
             tracker.update();
         }
@@ -562,7 +564,7 @@ public class NeatTrainer {
         MatchStats m = pooledStats.get();
         if (m == null) { m = new MatchStats(); pooledStats.set(m); }
         else m.reset();
-        m.frames = sys.frameCount;
+        m.frames = sys.frameCount + MatchStats.COUNTDOWN_FRAMES;
         if (sys.currentState instanceof ResultGameState) {
             m.aiWon = ((ResultGameState) sys.currentState).winGroup == sys.myGroup.id;
         }

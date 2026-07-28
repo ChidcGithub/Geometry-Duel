@@ -15,6 +15,7 @@ import com.geometryduel.game.state.DrawLongbowState;
 import com.geometryduel.game.state.DrawShortbowState;
 import com.geometryduel.game.state.GameSystemState;
 import com.geometryduel.game.state.MoveState;
+import com.geometryduel.game.state.PlayGameState;
 import com.geometryduel.game.state.StartGameState;
 import com.geometryduel.render.Shapes;
 
@@ -106,8 +107,9 @@ public class GameSystem {
         playerA.aimAngle = (float) Math.atan2(playerB.pos.y - playerA.pos.y, playerB.pos.x - playerA.pos.x);
         playerB.aimAngle = (float) Math.atan2(playerA.pos.y - playerB.pos.y, playerA.pos.x - playerB.pos.x);
 
-        background = new GameBackground(theme().backgroundLine, 0.1f);
-        currentState(new StartGameState(this));
+        background = muted ? null : new GameBackground(theme().backgroundLine, 0.1f);
+        // 无头模拟跳过 180 帧开局倒计时（期间引擎不 act、玩家静止，物理等价）
+        currentState(muted ? new PlayGameState(this) : new StartGameState(this));
     }
 
     public ThemeData theme() {
@@ -125,7 +127,7 @@ public class GameSystem {
     }
 
     public void display(Shapes s) {
-        background.display(s);
+        if (background != null) background.display(s); // 无头模拟不分配背景
         currentState.display(s);
     }
 

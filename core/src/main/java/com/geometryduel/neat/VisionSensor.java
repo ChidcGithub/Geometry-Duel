@@ -19,6 +19,17 @@ public class VisionSensor {
     public final int rayCount;
     private final float[] cos, sin;
 
+    // ---- 箭矢数据复用缓冲：sense 每帧填充一次，射线循环内联投影判定 ----
+    private float[] aRelX = new float[16], aRelY = new float[16], aR2 = new float[16];
+    private float[] aVX = new float[16], aVY = new float[16];
+    private boolean[] aLethal = new boolean[16];
+
+    private void ensureArrowCapacity(int n) {
+        if (n <= aRelX.length) return;
+        aRelX = new float[n]; aRelY = new float[n]; aR2 = new float[n];
+        aVX = new float[n]; aVY = new float[n]; aLethal = new boolean[n];
+    }
+
     public VisionSensor(int rayCount) {
         this.rayCount = rayCount;
         cos = new float[rayCount];
@@ -40,6 +51,29 @@ public class VisionSensor {
         float cosAim = (float) Math.cos(self.aimAngle);
         float sinAim = (float) Math.sin(self.aimAngle);
 
+        // ---- 每帧一次：提举敌人与箭矢相对数据（射线循环内只做投影判定）----
+        final float eRelX, eRelY, evx, evy;
+        int arrowCount = 0;
+        if (enemy != null) {
+            eRelX = enemy.pos.x - px; eRelY = enemy.pos.y - py;
+            evx = enemy.vel.x; evy = enemy.vel.y;
+            int n = enemy.group.arrows.size();
+            ensureArrowCapacity(n);
+            for (int j = 0; j < n; j++) {
+                ArrowActor a = enemy.group.arrows.get(j);
+                aRelX[j] = a.pos.x - px;
+                aRelY[j] = a.pos.y - py;
+                float r = a.collisionRadius + 4f;
+                aR2[j] = r * r;
+                aVX[j] = a.vel.x;
+                aVY[j] = a.vel.y;
+                aLethal[j] = a.isLethal();
+            }
+            arrowCount = n;
+        } else {
+            eRelX = eRelY = evx = evy = 0f;
+        }
+
         for (int i = 0; i < rayCount; i++) {
             float dx = cos[i] * cosAim - sin[i] * sinAim;
             float dy = sin[i] * cosAim + cos[i] * sinAim;
@@ -59,20 +93,32 @@ public class VisionSensor {
             float vDanger = 0f; // 靠近AI的速度分量（正=迫近）
 
             if (enemy != null) {
-                float t = rayCircle(px, py, dx, dy, enemy.pos.x, enemy.pos.y, 16f);
-                if (t < best) {
-                    best = t;
-                    type = 1;
-                    vDanger = -(enemy.vel.x * dx + enemy.vel.y * dy) / MAX_SPEED;
+                float proj = eRelX * dx + eRelY * dy;
+                if (proj >= 0f) {
+                    float d2 = eRelX * eRelX + eRelY * eRelY - proj * proj;
+                    if (d2 <= 256f) { // 敌方玩家判定半径 16
+                        float t = proj - (float) Math.sqrt(256f - d2);
+                        if (t < 0f) t = 0f;
+                        if (t < best) {
+                            best = t;
+                            type = 1;
+                            vDanger = -(evx * dx + evy * dy) / MAX_SPEED;
+                        }
+                    }
                 }
             }
-            for (int j = 0; enemy != null && j < enemy.group.arrows.size(); j++) {
-                ArrowActor a = enemy.group.arrows.get(j);
-                float t = rayCircle(px, py, dx, dy, a.pos.x, a.pos.y, a.collisionRadius + 4f);
+            for (int j = 0; j < arrowCount; j++) {
+                float proj = aRelX[j] * dx + aRelY[j] * dy;
+                if (proj < 0f) continue;
+                float d2 = aRelX[j] * aRelX[j] + aRelY[j] * aRelY[j] - proj * proj;
+                float r2 = aR2[j];
+                if (d2 > r2) continue;
+                float t = proj - (float) Math.sqrt(r2 - d2);
+                if (t < 0f) t = 0f;
                 if (t < best) {
                     best = t;
-                    type = a.isLethal() ? 3 : 2;
-                    vDanger = -(a.vel.x * dx + a.vel.y * dy) / MAX_SPEED;
+                    type = aLethal[j] ? 3 : 2;
+                    vDanger = -(aVX[j] * dx + aVY[j] * dy) / MAX_SPEED;
                 }
             }
 
@@ -172,16 +218,5 @@ public class VisionSensor {
 
     private static float clamp1(float v) {
         return v < -1f ? -1f : (v > 1f ? 1f : v);
-    }
-
-    private static float rayCircle(float px, float py, float dx, float dy,
-                                   float cx, float cy, float r) {
-        float ox = cx - px, oy = cy - py;
-        float proj = ox * dx + oy * dy;
-        if (proj < 0f) return MAX_SIGHT;
-        float d2 = ox * ox + oy * oy - proj * proj;
-        float r2 = r * r;
-        if (d2 > r2) return MAX_SIGHT;
-        return Math.max(0f, proj - (float) Math.sqrt(r2 - d2));
     }
 }
