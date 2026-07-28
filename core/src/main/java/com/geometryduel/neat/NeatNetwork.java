@@ -2,6 +2,7 @@ package com.geometryduel.neat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 /**
  * 由 Genome 构建的神经网络，支持循环连接 (A)。
@@ -18,6 +19,8 @@ public class NeatNetwork {
     private final int[] srcLen, recLen;
     private final int[] activations;
     private final int[] outputPositions;
+    /** 循环连接源节点位置（去重）：eval/reset 只需同步这些位置。 */
+    private final int[] recSrcPositions;
     private final float[] values, prevValues;
 
     public NeatNetwork(Genome g, int inputCount, int outputCount) {
@@ -176,9 +179,11 @@ public class NeatNetwork {
         activations = new int[orderLen];
 
         HashMap<Integer, Integer> actMap = new HashMap<Integer, Integer>();
+        HashSet<Integer> outputIds = new HashSet<Integer>();
         for (int i = 0; i < g.nodes.size(); i++) {
             Genome.NodeGene n = g.nodes.get(i);
             actMap.put(n.id, n.activation);
+            if (n.type == Genome.OUTPUT) outputIds.add(n.id);
         }
 
         for (int i = 0; i < orderLen; i++) {
@@ -208,14 +213,28 @@ public class NeatNetwork {
             }
         }
 
-        // 输出节点位置
+        // 输出节点位置（按拓扑序扫描一次）
         outputPositions = new int[outputCount];
         int found = 0;
         for (int i = 0; i < orderLen && found < outputCount; i++) {
-            int id = ord.get(i);
-            for (int k = 0; k < g.nodes.size(); k++) {
-                Genome.NodeGene n = g.nodes.get(k);
-                if (n.id == id && n.type == Genome.OUTPUT) { outputPositions[found++] = i; break; }
+            if (outputIds.contains(ord.get(i))) outputPositions[found++] = i;
+        }
+
+        // 循环连接源节点去重列表：prevValues 只被这些位置读取
+        boolean[] seen = new boolean[orderLen];
+        int recSrcCount = 0;
+        for (int i = 0; i < orderLen; i++) {
+            int[] rp = recPositions[i];
+            for (int j = 0; j < recLen[i]; j++) {
+                if (!seen[rp[j]]) { seen[rp[j]] = true; recSrcCount++; }
+            }
+        }
+        recSrcPositions = new int[recSrcCount];
+        int k = 0;
+        for (int i = 0; i < orderLen; i++) {
+            int[] rp = recPositions[i];
+            for (int j = 0; j < recLen[i]; j++) {
+                if (seen[rp[j]]) { seen[rp[j]] = false; recSrcPositions[k++] = rp[j]; }
             }
         }
 
@@ -225,7 +244,7 @@ public class NeatNetwork {
 
     /** 清理循环状态（每局开始调用） */
     public void reset() {
-        for (int i = 0; i < prevValues.length; i++) prevValues[i] = 0f;
+        for (int i = 0; i < recSrcPositions.length; i++) prevValues[recSrcPositions[i]] = 0f;
     }
 
     /**
@@ -251,8 +270,10 @@ public class NeatNetwork {
             values[i] = activate(sum, activations[i]);
         }
 
-        // 复制当前值到 prevValues 供下一帧循环连接使用
-        System.arraycopy(values, 0, prevValues, 0, orderLen);
+        // 只复制循环源节点的当前值到 prevValues 供下一帧循环连接使用
+        // （prevValues 仅被循环连接读取，其余位置无需同步）
+        for (int i = 0; i < recSrcPositions.length; i++)
+            prevValues[recSrcPositions[i]] = values[recSrcPositions[i]];
 
         for (int i = 0; i < outputCount; i++)
             out[i] = values[outputPositions[i]];

@@ -2,6 +2,7 @@ package com.geometryduel.neat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Random;
 
 public class Genome {
@@ -210,12 +211,20 @@ public class Genome {
         child.resetProb     = rng.nextBoolean() ? a.resetProb : b.resetProb;
         child.activationProb= rng.nextBoolean() ? a.activationProb : b.activationProb;
         child.removeProb    = rng.nextBoolean() ? a.removeProb : b.removeProb;
-        // 节点
+        // 节点（同时记录 id 集，供 ensureNode O(1) 查重）
+        HashSet<Integer> childNodeIds = new HashSet<Integer>();
         for (int i = 0; i < a.nodes.size(); i++) {
             NodeGene n = a.nodes.get(i);
             NodeGene nc = new NodeGene(n.id, n.type);
             nc.activation = n.activation;
             child.nodes.add(nc);
+            childNodeIds.add(n.id);
+        }
+        // b 节点表（ensureNode O(1) 查找，避免每次线性扫描）
+        HashMap<Integer, NodeGene> bNodes = new HashMap<Integer, NodeGene>();
+        for (int i = 0; i < b.nodes.size(); i++) {
+            NodeGene n = b.nodes.get(i);
+            bNodes.put(n.id, n);
         }
         // 连接
         for (int i = 0; i < a.conns.size(); i++) {
@@ -230,16 +239,22 @@ public class Genome {
             ConnectionGene nc = new ConnectionGene(chosen.in, chosen.out, chosen.weight, chosen.innovation);
             nc.enabled = disabledSomewhere ? rng.nextFloat() >= 0.75f && chosen.enabled : chosen.enabled;
             child.conns.add(nc);
-            ensureNode(child, b, nc.in);
-            ensureNode(child, b, nc.out);
+            ensureNode(child, bNodes, childNodeIds, nc.in);
+            ensureNode(child, bNodes, childNodeIds, nc.out);
         }
         return child;
     }
 
-    private static void ensureNode(Genome child, Genome src, int id) {
-        if (child.node(id) != null) return;
-        NodeGene n = src.node(id);
-        if (n != null) { NodeGene nc = new NodeGene(n.id, n.type); nc.activation = n.activation; child.nodes.add(nc); }
+    private static void ensureNode(Genome child, HashMap<Integer, NodeGene> srcNodes,
+                                   HashSet<Integer> childNodeIds, int id) {
+        if (childNodeIds.contains(id)) return;
+        NodeGene n = srcNodes.get(id);
+        if (n != null) {
+            NodeGene nc = new NodeGene(n.id, n.type);
+            nc.activation = n.activation;
+            child.nodes.add(nc);
+            childNodeIds.add(id);
+        }
     }
 
     // ------------------------------------------------------------ 兼容距离
@@ -253,8 +268,11 @@ public class Genome {
             if (c.innovation > oMax) oMax = c.innovation;
         }
         int myMax = 0;
+        HashSet<Integer> myInnovations = new HashSet<Integer>();
         for (int i = 0; i < conns.size(); i++) {
-            if (conns.get(i).innovation > myMax) myMax = conns.get(i).innovation;
+            ConnectionGene c = conns.get(i);
+            myInnovations.add(c.innovation);
+            if (c.innovation > myMax) myMax = c.innovation;
         }
         int excess = 0, disjoint = 0, matching = 0;
         float weightDiff = 0f;
@@ -271,7 +289,7 @@ public class Genome {
         }
         for (int i = 0; i < o.conns.size(); i++) {
             ConnectionGene c = o.conns.get(i);
-            if (hasInnovation(c.innovation)) continue;
+            if (myInnovations.contains(c.innovation)) continue;
             if (c.innovation > myMax) excess++;
             else disjoint++;
         }
@@ -279,12 +297,6 @@ public class Genome {
         if (n < 20) n = 1;
         float wd = matching == 0 ? 0f : weightDiff / matching;
         return excess / (float) n + disjoint / (float) n + 0.4f * wd;
-    }
-
-    private boolean hasInnovation(int innov) {
-        for (int i = 0; i < conns.size(); i++)
-            if (conns.get(i).innovation == innov) return true;
-        return false;
     }
 
     // ------------------------------------------------------------ 行为签名 (C)

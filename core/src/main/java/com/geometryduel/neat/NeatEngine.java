@@ -18,6 +18,10 @@ public class NeatEngine extends PlayerEngine {
     private int skipCounter;
     private int engineRayCount;
     private Genome currentGenome;
+    /** 网络构建缓存（identity 命中即复用）：同代对战双方交替、冠军切换时避免重复拓扑排序+可达性矩阵。 */
+    private final Genome[] cacheGenomes = new Genome[4];
+    private final NeatNetwork[] cacheNets = new NeatNetwork[4];
+    private int cacheNext;
 
     public NeatEngine(Genome genome, int rayCount) {
         this.engineRayCount = rayCount;
@@ -41,15 +45,29 @@ public class NeatEngine extends PlayerEngine {
     public void setSkipFrames(int n) { this.skipFrames = n; }
     public int skipFrames() { return skipFrames; }
 
-    /** 换基因组重建网络，射线数变时重新分配数组 */
+    /** 换基因组重建网络（缓存命中则复用），射线数变时重新分配数组并清空缓存 */
     public void setGenome(Genome genome, int rayCount) {
         if (this.engineRayCount != rayCount) {
             this.engineRayCount = rayCount;
             this.sensor = new VisionSensor(rayCount);
             this.inputs = new float[sensor.inputSize() + 1];
             this.inputs[this.inputs.length - 1] = 1f;
+            for (int i = 0; i < cacheGenomes.length; i++) { cacheGenomes[i] = null; cacheNets[i] = null; }
+            cacheNext = 0;
         }
-        this.net = new NeatNetwork(genome, sensor.inputSize() + 1, 5);
+        for (int i = 0; i < cacheGenomes.length; i++) {
+            if (cacheGenomes[i] == genome) {
+                this.net = cacheNets[i];
+                this.currentGenome = genome;
+                this.skipCounter = 0;
+                return;
+            }
+        }
+        NeatNetwork built = new NeatNetwork(genome, sensor.inputSize() + 1, 5);
+        cacheGenomes[cacheNext] = genome;
+        cacheNets[cacheNext] = built;
+        cacheNext = (cacheNext + 1) % cacheGenomes.length;
+        this.net = built;
         this.currentGenome = genome;
         this.skipCounter = 0;
     }
