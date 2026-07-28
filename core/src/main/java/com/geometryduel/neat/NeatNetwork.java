@@ -10,10 +10,11 @@ import java.util.HashMap;
 public class NeatNetwork {
     public final int inputCount, outputCount;
 
-    private final int[] order;          // 拓扑求值顺序（节点 id）
-    private final float[][] inWeights;  // 每个节点的入边权重
-    private final int[][] inSources;    // 每个节点的入边来源节点 id
+    private final int[] order;
+    private final float[][] inWeights;
+    private final int[][] inSources;
     private final int[] outputIds;
+    private final int[] activations;
 
     public NeatNetwork(Genome g, int inputCount, int outputCount) {
         this.inputCount = inputCount;
@@ -100,9 +101,19 @@ public class NeatNetwork {
             Genome.NodeGene n = g.nodes.get(i);
             if (n.type == Genome.OUTPUT) outputIds[found++] = n.id;
         }
+
+        HashMap<Integer, Integer> actMap = new HashMap<Integer, Integer>();
+        for (int i = 0; i < g.nodes.size(); i++) {
+            Genome.NodeGene n = g.nodes.get(i);
+            actMap.put(n.id, n.activation);
+        }
+        activations = new int[order.length];
+        for (int i = 0; i < order.length; i++) {
+            Integer a = actMap.get(order[i]);
+            activations[i] = a != null ? a : Genome.TANH;
+        }
     }
 
-    /** 求值：inputs 长度须为 inputCount（含偏置 1.0），返回 outputCount 个 tanh 输出。 */
     public float[] eval(float[] inputs, float[] out) {
         HashMap<Integer, Float> values = new HashMap<Integer, Float>();
         for (int i = 0; i < inputCount; i++) values.put(i, inputs[i]);
@@ -116,12 +127,21 @@ public class NeatNetwork {
                 Float v = values.get(src[j]);
                 if (v != null) sum += v * w[j];
             }
-            values.put(id, (float) Math.tanh(sum));
+            values.put(id, activate(sum, activations[i]));
         }
         for (int i = 0; i < outputCount; i++) {
             Float v = values.get(outputIds[i]);
             out[i] = v == null ? 0f : v;
         }
         return out;
+    }
+
+    private static float activate(float x, int type) {
+        switch (type) {
+            case Genome.RELU: return Math.max(0f, x);
+            case Genome.SIGMOID: return 1f / (1f + (float) Math.exp(-x));
+            case Genome.LEAKY_RELU: return x > 0f ? x : x * 0.01f;
+            default: return (float) Math.tanh(x);
+        }
     }
 }

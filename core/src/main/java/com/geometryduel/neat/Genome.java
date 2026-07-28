@@ -133,7 +133,7 @@ public class Genome {
         return true;
     }
 
-    /** 检查新增 in→out 是否成环（从 out 沿使能连接能否到达 in）。 */
+    /** 开关连接：翻转 enable 状态。 */
     public boolean mutateToggleConnection(Random rng) {
         if (conns.isEmpty()) return false;
         ConnectionGene c = conns.get(rng.nextInt(conns.size()));

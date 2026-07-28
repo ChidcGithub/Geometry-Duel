@@ -51,7 +51,7 @@ public class NeatTrainer {
     private volatile boolean stopped;
     private volatile boolean resetting;
     private volatile boolean converged;
-    private float realMatchBonus;
+    private volatile float realMatchBonus;
     private float championElo = 1200f;
     private int playerWins, playerLosses;
     private int patienceCounter;
@@ -288,6 +288,8 @@ public class NeatTrainer {
         }
 
         // 2. 同代对战（2轮）
+        int sameGenTasks = 2 * (total / 2);
+        final CountDownLatch sameGenLatch = new CountDownLatch(sameGenTasks);
         for (int round = 0; round < 2; round++) {
             ArrayList<Integer> idx = new ArrayList<Integer>();
             for (int i = 0; i < total; i++) idx.add(i);
@@ -300,11 +302,13 @@ public class NeatTrainer {
                     float fB = evaluate(gb, ga, null, shaping, 1.0f);
                     synchronized (fitness) { fitness[a] += fA * 0.2f; fitness[b] += fB * 0.2f; }
                     simMatches.addAndGet(SIMS_PER_MATCH * 2);
+                    sameGenLatch.countDown();
                 });
             }
         }
 
         try { latch.await(); } catch (InterruptedException e) { return; }
+        try { sameGenLatch.await(); } catch (InterruptedException e) { return; }
         if (stopped || resetting) return;
 
         int best = 0;
@@ -331,7 +335,7 @@ public class NeatTrainer {
         }
 
         // 每10代清策略统计
-        if (generation % 10 == 0) strategyCounts.clear();
+        if (generation % 10 == 0) { synchronized (strategyCounts) { strategyCounts.clear(); } }
     }
 
     // ------------------------------------------------------------ 评估/模拟
