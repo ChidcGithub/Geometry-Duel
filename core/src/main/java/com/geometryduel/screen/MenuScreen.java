@@ -92,6 +92,16 @@ public class MenuScreen extends ScreenAdapter {
         app.font.setColor(app.theme.text);
         app.font.draw(app.batch, "Geometry Duel", (w - layout.width) / 2f, h * 0.071f + layout.height);
         for (TextButton b : buttons) b.drawText(app.batch, app.font, app.theme, 2f * unit);
+
+        // ---- 左下角：GPU / NPU 信息 ----
+        app.hardware.detect();
+        app.font.getData().setScale(0.75f * unit);
+        float lx = 10f * unit;
+        app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 0.45f);
+        app.font.draw(app.batch, "GPU: " + app.hardware.gpuRenderer, lx, 58f * unit);
+        app.font.draw(app.batch, "NPU: " + app.hardware.npuInfo, lx, 34f * unit);
+        app.font.setColor(app.theme.text);
+
         app.font.getData().setScale(1f);
         app.batch.end();
 

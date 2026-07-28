@@ -35,6 +35,7 @@ public class GeometryDuelGame extends Game {
     public boolean opponentNeat = true;
 
     public Sound sFire, lFire, longShotCharged, lFireHurt;
+    public final HardwareInfo hardware = new HardwareInfo();
 
     public GeometryDuelGame(boolean isAndroid) {
         this.isAndroid = isAndroid;
