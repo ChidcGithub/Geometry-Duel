@@ -11,7 +11,8 @@ import com.geometryduel.game.state.DrawLongbowState;
  * 叠加 9 项全局状态。
  */
 public class VisionSensor {
-    public static final int GLOBAL_INPUTS = 15;  // +1 enemy longbow aim danger direction
+    // +6: 自身传送冷却、传送锚点相对向量(x2)、敌人传送标记、敌人速度向量(x2)
+    public static final int GLOBAL_INPUTS = 21;
     private static final float MAX_SIGHT = 860f;
     private static final float MAX_SPEED = 64f;
 
@@ -143,6 +144,34 @@ public class VisionSensor {
         } else {
             out[g + 14] = 0f;
         }
+
+        // ---- 2.0：传送与速度感知补全 ----
+        // 自身传送冷却（0=就绪，1=刚回传）——消除"不知道传送何时可用"的盲区
+        out[g + 15] = Math.min(1f, self.teleportCooldown / (float) PlayerActor.TELEPORT_COOLDOWN);
+
+        // 传送锚点相对向量（未标记为 0）——让 AI 学会评估回传落点
+        if (self.teleportMarked) {
+            out[g + 16] = clamp1((self.teleportAnchorX - px) / 320f);
+            out[g + 17] = clamp1((self.teleportAnchorY - py) / 320f);
+        } else {
+            out[g + 16] = out[g + 17] = 0f;
+        }
+
+        // 敌人传送标记剩余时间比（0=未标记）——预判对手回传时机
+        out[g + 18] = (enemy != null && enemy.teleportMarked)
+                ? enemy.teleportMarkRemaining / (float) PlayerActor.TELEPORT_MARK_DURATION : 0f;
+
+        // 敌人速度向量（预判走位与箭路，射线危险度只有径向分量）
+        if (enemy != null) {
+            out[g + 19] = clamp1(enemy.vel.x / PlayerActor.MAX_VX);
+            out[g + 20] = clamp1(enemy.vel.y / PlayerActor.MAX_VY);
+        } else {
+            out[g + 19] = out[g + 20] = 0f;
+        }
+    }
+
+    private static float clamp1(float v) {
+        return v < -1f ? -1f : (v > 1f ? 1f : v);
     }
 
     private static float rayCircle(float px, float py, float dx, float dy,

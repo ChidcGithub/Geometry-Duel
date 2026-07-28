@@ -11,13 +11,16 @@ import java.util.ArrayList;
  * 解析失败 / 版本不符 / 射线数不符 → 返回 null（调用方回退全新进化）。
  */
 public class NeatStorage {
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
+    /** 幽灵录像独立版本号：格式未变，保持 1 以兼容已有录像。 */
+    private static final int GHOST_VERSION = 1;
     private static final String FILE = "neat-ai.json";
     private static final String GHOST_FILE = "neat-ghosts.json";
 
     public static class SaveData {
         public int version;
         public int rayCount;
+        public int inputCount;
         public int generation;
         public float bestFitness;
         public long simMatches;
@@ -27,12 +30,13 @@ public class NeatStorage {
         public ArrayList<Genome> population;
     }
 
-    public static SaveData load(int rayCount) {
+    public static SaveData load(int rayCount, int inputCount) {
         try {
             FileHandle fh = Gdx.files.local(FILE);
             if (!fh.exists()) return null;
             SaveData d = new Json().fromJson(SaveData.class, fh);
             if (d == null || d.version != VERSION || d.rayCount != rayCount
+                    || d.inputCount != inputCount
                     || d.population == null || d.population.isEmpty()) {
                 Gdx.app.log("NeatStorage", "save incompatible, starting fresh");
                 return null;
@@ -45,12 +49,13 @@ public class NeatStorage {
         }
     }
 
-    public static void save(int rayCount, int generation, float bestFitness, long simMatches,
+    public static void save(int rayCount, int inputCount, int generation, float bestFitness, long simMatches,
                             NeatEvolver evolver, Genome champion) {
         try {
             SaveData d = new SaveData();
             d.version = VERSION;
             d.rayCount = rayCount;
+            d.inputCount = inputCount;
             d.generation = generation;
             d.bestFitness = bestFitness;
             d.simMatches = simMatches;
@@ -92,7 +97,7 @@ public class NeatStorage {
             FileHandle fh = Gdx.files.local(GHOST_FILE);
             if (!fh.exists()) return out;
             GhostSave d = new Json().fromJson(GhostSave.class, fh);
-            if (d == null || d.version != VERSION || d.ghosts == null) return out;
+            if (d == null || d.version != GHOST_VERSION || d.ghosts == null) return out;
             // 过滤损坏/不完整条目，绝不崩溃
             for (GhostData g : d.ghosts) {
                 if (g != null && g.frames > 0
@@ -111,7 +116,7 @@ public class NeatStorage {
     public static void saveGhosts(ArrayList<GhostData> ghosts) {
         try {
             GhostSave d = new GhostSave();
-            d.version = VERSION;
+            d.version = GHOST_VERSION;
             d.ghosts = new ArrayList<GhostData>(ghosts);
             writeAtomic(Gdx.files.local(GHOST_FILE), new Json().toJson(d));
         } catch (Throwable t) {

@@ -175,7 +175,13 @@ public class NeatTrainer {
 
     public void saveNow() {
         NeatEvolver ev = evolver;
-        if (ev != null) NeatStorage.save(rayCount, generation, bestFitness, simMatches.get(), ev, champion);
+        if (ev != null) NeatStorage.save(rayCount, expectedInputCount(), generation,
+                bestFitness, simMatches.get(), ev, champion);
+    }
+
+    /** 当前射线数对应的网络输入维度（含 bias），存档兼容性校验用。 */
+    private int expectedInputCount() {
+        return new VisionSensor(rayCount).inputSize() + 1;
     }
 
     // ------------------------------------------------------------ 外部接口
@@ -294,7 +300,7 @@ public class NeatTrainer {
     }
 
     private void loadOrCreate() {
-        NeatStorage.SaveData d = NeatStorage.load(rayCount);
+        NeatStorage.SaveData d = NeatStorage.load(rayCount, expectedInputCount());
         if (d != null) {
             generation = d.generation;
             bestFitness = d.bestFitness;
@@ -588,7 +594,7 @@ public class NeatTrainer {
 
     private void verifySave() {
         try {
-            NeatStorage.SaveData loaded = NeatStorage.load(rayCount);
+            NeatStorage.SaveData loaded = NeatStorage.load(rayCount, expectedInputCount());
             if (loaded == null || loaded.generation != generation)
                 Gdx.app.error("NeatTrainer", "save verify FAIL gen " + generation);
         } catch (Throwable t) {
