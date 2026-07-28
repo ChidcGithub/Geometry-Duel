@@ -4,18 +4,20 @@ import com.geometryduel.game.actor.PlayerActor;
 import com.geometryduel.game.engine.PlayerEngine;
 
 /**
- * NEAT 驱动的玩家引擎：每帧 感知 → 网络求值 → 写引擎字段。
- * 输出 5 路：moveX/moveY（连续，死区 0.2）、shot/longShot/teleport（滞回阈值：
+ * NEAT 驱动的玩家引擎：每 3 帧推理一次（20 Hz），跳过帧复用上次决策。
+ * 输出 5 路：moveX/moveY（连续，死区 0.05）、shot/longShot/teleport（滞回阈值：
  * >0.5 按下、<0.3 松开，防止阈值附近抖动）。
  */
 public class NeatEngine extends PlayerEngine {
+    private static final int SKIP_FRAMES = 2;
+
     private final NeatNetwork net;
     private final VisionSensor sensor;
     private final float[] inputs, outputs;
+    private int skipCounter;
 
     public NeatEngine(Genome genome, int rayCount) {
         this.sensor = new VisionSensor(rayCount);
-        // +1 为恒 1 偏置输入
         this.net = new NeatNetwork(genome, sensor.inputSize() + 1, 5);
         this.inputs = new float[sensor.inputSize() + 1];
         this.outputs = new float[5];
@@ -23,16 +25,21 @@ public class NeatEngine extends PlayerEngine {
     }
 
     public void reset() {
-        // 为未来LSTM等有状态组件预留接口
+        skipCounter = 0;
     }
 
     @Override
     public void run(PlayerActor player) {
+        if (skipCounter > 0) {
+            skipCounter--;
+            return;
+        }
+        skipCounter = SKIP_FRAMES;
+
         sensor.sense(player, inputs);
         net.eval(inputs, outputs);
 
         float mx = outputs[0], my = outputs[1];
-        // 限制输出范围到[-1,1]
         mx = Math.max(-1f, Math.min(1f, mx));
         my = Math.max(-1f, Math.min(1f, my));
         if (Math.abs(mx) < 0.05f) mx = 0f;
