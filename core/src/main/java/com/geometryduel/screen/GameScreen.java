@@ -333,13 +333,13 @@ public class GameScreen extends ScreenAdapter {
             float progress = human.teleportMarkRemaining / (float) PlayerActor.TELEPORT_MARK_DURATION;
             s.noFill();
             s.stroke(human.teleportMarkRemaining < 180 ? app.theme.longbowEffect : app.theme.teleportEffect);
-            s.strokeWeight(3f);
+            s.strokeWeight(6f);
             s.arc(cX, cY, cR + 8f, 90f, progress * 360f);
         } else if (human != null && human.teleportCooldown > 0) {
             float progress = human.teleportCooldown / (float) PlayerActor.TELEPORT_COOLDOWN;
             s.noFill();
             s.stroke(app.theme.stroke, 120);
-            s.strokeWeight(3f);
+            s.strokeWeight(6f);
             s.arc(cX, cY, cR + 8f, 90f, progress * 360f);
         }
     }
