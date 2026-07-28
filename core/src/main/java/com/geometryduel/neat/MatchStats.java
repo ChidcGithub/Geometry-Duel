@@ -39,6 +39,12 @@ public class MatchStats {
     public int shortLongbowAlternate;   // 短弓+长弓交替次数
     public int teleportHitDefense;      // 传送成功躲避并反击
 
+    // ---- 主动移动 (1.4) ----
+    public int activeMoveFrames;        // 主动移动帧数（速度>阈值）
+    public int chaseFrames;             // 追击帧数（向敌人方向移动）
+    public int centerFrames;            // 在中心区域帧数（奖励占据有利位置）
+    public float positionDiversity;     // 位置多样性（基于访问不同区域的数量）
+
     public float fitness(float shaping) {
         int playFrames = Math.max(1, frames - COUNTDOWN_FRAMES);
         float wallRatio = campFrames / (float) playFrames;
@@ -49,7 +55,7 @@ public class MatchStats {
         f += Math.min(frames, 7200) / 7200f * 40f * (1f - wallRatio * 0.8f);
         f += hitsDealt * 15f;
         f -= hitsTaken * 5f;
-        f -= wallRatio * 40f;
+        f -= wallRatio * 60f;  // 从40提升至60
 
         // —— 精度奖励 (1.3) ——
         f += longShotsHit * 20f * shaping;
@@ -65,6 +71,15 @@ public class MatchStats {
         combo += shortLongbowAlternate * 3f;
         combo += teleportHitDefense * 8f;
         f += combo;
+
+        // —— 主动移动奖励 (1.4) ——
+        float moveBonus = 0f;
+        float activeRatio = activeMoveFrames / (float) playFrames;
+        moveBonus += activeRatio * 15f;  // 主动移动奖励
+        moveBonus += chaseFrames / (float) playFrames * 10f;  // 追击奖励
+        moveBonus += centerFrames / (float) playFrames * 8f;  // 占据中心奖励
+        moveBonus += positionDiversity * 5f;  // 位置多样性奖励
+        f += moveBonus;
 
         // —— 行为项（cap 50） ——
         float behavior = 0f;

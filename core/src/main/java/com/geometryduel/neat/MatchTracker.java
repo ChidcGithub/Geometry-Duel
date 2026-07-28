@@ -39,6 +39,11 @@ public class MatchTracker {
     public int teleportLongbowCombos;
     public int shortLongbowAlternate;
     public int teleportHitDefense;
+    // 1.4
+    public int activeMoveFrames;
+    public int chaseFrames;
+    public int centerFrames;
+    private final boolean[] visitedZones = new boolean[9];  // 3x3区域访问记录
 
     public MatchTracker(ActorGroup group) {
         this.group = group;
@@ -136,7 +141,36 @@ public class MatchTracker {
         // ---- 靠墙检测 ----
         if (p != null) {
             float x = p.pos.x, y = p.pos.y;
-            if (x < 64f || x > 576f || y < 64f || y > 576f) campFrames++;
+            // 缩小安全区域：从64-576改为100-540
+            if (x < 100f || x > 540f || y < 100f || y > 540f) campFrames++;
+            // 角落特别惩罚：距离任意角落<80px
+            if (x < 80f || x > 560f) {
+                if (y < 80f || y > 560f) campFrames += 2;  // 角落双倍计数
+            }
+
+            // 主动移动检测：速度>1.0
+            float speed = (float) Math.sqrt(p.vel.x * p.vel.x + p.vel.y * p.vel.y);
+            if (speed > 1.0f) activeMoveFrames++;
+
+            // 追击检测：向敌人方向移动
+            if (enemy != null && speed > 0.5f) {
+                float toEnemyX = enemy.pos.x - x;
+                float toEnemyY = enemy.pos.y - y;
+                float dist = (float) Math.sqrt(toEnemyX * toEnemyX + toEnemyY * toEnemyY);
+                if (dist > 0.0001f) {
+                    float dot = (p.vel.x * toEnemyX + p.vel.y * toEnemyY) / dist;
+                    if (dot > 0.5f) chaseFrames++;  // 向敌人方向移动
+                }
+            }
+
+            // 中心区域检测：在200-440范围内
+            if (x > 200f && x < 440f && y > 200f && y < 440f) centerFrames++;
+
+            // 位置多样性：记录访问的3x3区域
+            int zoneX = x < 213f ? 0 : (x < 426f ? 1 : 2);
+            int zoneY = y < 213f ? 0 : (y < 426f ? 1 : 2);
+            int zoneIndex = zoneY * 3 + zoneX;
+            visitedZones[zoneIndex] = true;
         }
     }
 
@@ -157,5 +191,13 @@ public class MatchTracker {
         m.teleportLongbowCombos = teleportLongbowCombos;
         m.shortLongbowAlternate = shortLongbowAlternate;
         m.teleportHitDefense = teleportHitDefense;
+        m.activeMoveFrames = activeMoveFrames;
+        m.chaseFrames = chaseFrames;
+        m.centerFrames = centerFrames;
+
+        // 计算位置多样性：访问的不同区域数量 / 9
+        int visitedCount = 0;
+        for (boolean visited : visitedZones) if (visited) visitedCount++;
+        m.positionDiversity = visitedCount / 9f;
     }
 }

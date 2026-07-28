@@ -16,9 +16,15 @@ public class ReplayEngine extends PlayerEngine {
         this.ghost = ghost;
     }
 
+    public void reset() {
+        frame = 0;
+    }
+
     @Override
     public void run(PlayerActor player) {
         int f = frame++;
+        // 录像结束后保持最后一帧的状态而非归零
+        if (f >= ghost.frames) f = ghost.frames - 1;
         operateMove(ghost.moveXAt(f), ghost.moveYAt(f));
         operateShotButton(ghost.shotAt(f));
         operateLongShotButton(ghost.longShotAt(f));

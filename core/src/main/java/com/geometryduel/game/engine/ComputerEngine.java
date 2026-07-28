@@ -65,6 +65,14 @@ public class ComputerEngine extends PlayerEngine {
             if (enemy == null) return movePlan;
             if (enemy.state != null && enemy.state.isDamaged()) return killPlanGated();
 
+            // 检测敌人是否在角落（1.4：增强对抗角落战术）
+            boolean enemyInCorner = isEnemyInCorner(enemy);
+            if (enemyInCorner && level > 0.3f) {
+                // 敌人在角落时，主动占据中心区域压制
+                setMoveDirectionToCenter(p);
+                return random(1f) < 0.8f ? jabPlanGated() : movePlan;  // 倾向攻击
+            }
+
             // 找最近的敌方来箭（即敌方射出的箭）
             ArrowActor nearest = null;
             float best = Float.MAX_VALUE;
@@ -89,6 +97,21 @@ public class ComputerEngine extends PlayerEngine {
                 return random(1f) < movePlanAccuracy ? movePlan : jabPlanGated();
             }
             return random(1f) < jabPlanAccuracy ? movePlan : jabPlanGated();
+        }
+
+        /** 检测敌人是否在角落（1.4） */
+        private boolean isEnemyInCorner(PlayerActor enemy) {
+            if (enemy == null) return false;
+            float x = enemy.pos.x, y = enemy.pos.y;
+            // 距离任意角落<100px
+            return (x < 100f || x > 540f) && (y < 100f || y > 540f);
+        }
+
+        /** 移动到中心区域（1.4） */
+        private void setMoveDirectionToCenter(PlayerActor p) {
+            float centerX = 320f + random(-80f, 80f);
+            float centerY = 320f + random(-80f, 80f);
+            setMoveDirection(p, centerX, centerY, 50f);
         }
 
         Plan killPlanGated() {

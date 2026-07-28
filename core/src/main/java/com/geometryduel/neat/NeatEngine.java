@@ -22,12 +22,19 @@ public class NeatEngine extends PlayerEngine {
         this.inputs[this.inputs.length - 1] = 1f;
     }
 
+    public void reset() {
+        // 为未来LSTM等有状态组件预留接口
+    }
+
     @Override
     public void run(PlayerActor player) {
         sensor.sense(player, inputs);
         net.eval(inputs, outputs);
 
         float mx = outputs[0], my = outputs[1];
+        // 限制输出范围到[-1,1]
+        mx = Math.max(-1f, Math.min(1f, mx));
+        my = Math.max(-1f, Math.min(1f, my));
         if (Math.abs(mx) < 0.05f) mx = 0f;
         if (Math.abs(my) < 0.05f) my = 0f;
         operateMove(mx, my);

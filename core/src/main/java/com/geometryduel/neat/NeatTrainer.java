@@ -352,10 +352,24 @@ public class NeatTrainer {
     private MatchStats simulate(final Genome candidate, final Genome vsGenome,
                                 final GhostData ghost, final float level, final Random rngLocal) {
         final int rays = rayCount;
-        GameSystem.EngineFactory engineA = sys -> new NeatEngine(candidate, rays);
-        GameSystem.EngineFactory engineB = sys -> ghost != null ? new ReplayEngine(ghost)
-                : vsGenome != null ? new NeatEngine(vsGenome, rays)
-                : new ComputerEngine(sys, level);
+        GameSystem.EngineFactory engineA = sys -> {
+            NeatEngine engine = new NeatEngine(candidate, rays);
+            engine.reset();
+            return engine;
+        };
+        GameSystem.EngineFactory engineB = sys -> {
+            if (ghost != null) {
+                ReplayEngine engine = new ReplayEngine(ghost);
+                engine.reset();
+                return engine;
+            } else if (vsGenome != null) {
+                NeatEngine engine = new NeatEngine(vsGenome, rays);
+                engine.reset();
+                return engine;
+            } else {
+                return new ComputerEngine(sys, level);
+            }
+        };
         GameSystem sys = new GameSystem(app, false, false, 1.0f, null,
                 engineA, engineB, true, new Random(rngLocal.nextLong()));
         MatchTracker tracker = new MatchTracker(sys.myGroup);
@@ -377,12 +391,17 @@ public class NeatTrainer {
     // ------------------------------------------------------------ 早停 / 多样性
 
     private String extractStrategyProfile(Genome g, float fitness) {
+        // 基于适应度特征分类（在评估后传入MatchStats会更准确，这里用fitness粗略估计）
         StringBuilder sb = new StringBuilder();
-        // 基于基因组结构粗略分类
+        // 根据适应度值范围推断战术类型
+        if (fitness > 80) sb.append("A");  // 攻击型（高命中/击杀）
+        else if (fitness > 50) sb.append("B");  // 平衡型
+        else if (fitness > 30) sb.append("D");  // 防御型
+        else sb.append("P");  // 被动型
+
+        // 结合基因组复杂度
         int conns = g.conns.size();
-        int nodes = g.nodes.size();
-        if (conns > 500) sb.append("C"); else if (conns > 200) sb.append("M"); else sb.append("S");
-        if (nodes > 60) sb.append("D"); else sb.append("F");
+        if (conns > 400) sb.append("C"); else if (conns > 200) sb.append("M"); else sb.append("S");
         return sb.toString();
     }
 
