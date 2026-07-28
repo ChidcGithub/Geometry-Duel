@@ -25,6 +25,7 @@ public class MatchStats {
     public int teleportsUsed;
     public int teleportKills;
     public int aimedFrames;
+    public int campFrames;
 
     /**
      * 适应度 = 效果项（无上限） + 行为项（软上限 30） - 超时惩罚。
@@ -53,6 +54,12 @@ public class MatchStats {
         int playFrames = frames - COUNTDOWN_FRAMES;
         if (playFrames > QUICK_WIN_FRAMES) {
             f -= (playFrames - QUICK_WIN_FRAMES) / 60f * OVERTIME_PENALTY_PER_SEC;
+        }
+
+        // —— 露营惩罚：角落缩着不动靠自动瞄准蹭分是死路 ——
+        if (playFrames > 0) {
+            float wallRatio = Math.min(1f, campFrames / (float) playFrames);
+            f -= wallRatio * 30f;
         }
         return f;
     }

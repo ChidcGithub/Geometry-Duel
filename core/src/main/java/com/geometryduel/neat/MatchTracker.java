@@ -32,8 +32,9 @@ public class MatchTracker {
     public int shotsFired;
     public int longShotsFired;
     public int teleportsUsed;
-    public int teleportKills; // 传送后 5 秒内击杀对手的次数
-    public int aimedFrames;   // 蓄长弓期间瞄准线对准敌人的帧数
+    public int teleportKills;
+    public int aimedFrames;
+    public int campFrames;    // 靠墙帧数
 
     public MatchTracker(ActorGroup group) {
         this.group = group;
@@ -78,6 +79,12 @@ public class MatchTracker {
             while (err < -3.1415927f) err += 6.2831855f;
             if (Math.abs(err) < AIM_TOLERANCE) aimedFrames++;
         }
+
+        // 靠墙检测：距任意边界 <48px（防止角落露营策略）
+        if (p != null) {
+            float x = p.pos.x, y = p.pos.y;
+            if (x < 64f || x > 576f || y < 64f || y > 576f) campFrames++;
+        }
     }
 
     public void fill(MatchStats m) {
@@ -86,5 +93,6 @@ public class MatchTracker {
         m.teleportsUsed = teleportsUsed;
         m.teleportKills = teleportKills;
         m.aimedFrames = aimedFrames;
+        m.campFrames = campFrames;
     }
 }
