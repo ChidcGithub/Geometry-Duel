@@ -49,6 +49,16 @@ public class MatchStats {
     public int enemyLongbowAimFrames;   // 敌人蓄长弓瞄准自己的帧数
     public int longbowChargeFrames;     // 自身蓄长弓帧数
 
+    public void reset() {
+        aiWon = false; frames = hitsDealt = hitsTaken = 0;
+        shotsFired = longShotsFired = teleportsUsed = teleportKills = aimedFrames = campFrames = 0;
+        longShotsHit = teleportsDodged = perfectAimFrames = 0;
+        teleportLongbowCombos = shortLongbowAlternate = teleportHitDefense = 0;
+        activeMoveFrames = chaseFrames = centerFrames = 0;
+        positionDiversity = 0f;
+        keyMomentFrames = enemyLongbowAimFrames = longbowChargeFrames = 0;
+    }
+
     public float fitness(float shaping) {
         int playFrames = Math.max(1, frames - COUNTDOWN_FRAMES);
         float wallRatio = campFrames / (float) playFrames;

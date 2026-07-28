@@ -41,6 +41,11 @@ public class NeatTrainer {
         @Override
         protected Random initialValue() { return new Random(); }
     };
+    private final ThreadLocal<NeatEngine> pooledEngineA = new ThreadLocal<>();
+    private final ThreadLocal<NeatEngine> pooledEngineB = new ThreadLocal<>();
+    private final ThreadLocal<MatchTracker> pooledTracker = new ThreadLocal<>();
+    private final ThreadLocal<MatchStats> pooledStats = new ThreadLocal<>();
+    private final ThreadLocal<BehaviorSignature> pooledSig = new ThreadLocal<>();
 
     private volatile int rayCount;
     private volatile NeatEvolver evolver;
@@ -437,32 +442,46 @@ public class NeatTrainer {
     private MatchStats simulate(final Genome candidate, final Genome vsGenome,
                                 final GhostData ghost, final float level, final Random rngLocal) {
         final int rays = rayCount;
-        GameSystem.EngineFactory engineA = sys -> {
-            NeatEngine engine = new NeatEngine(candidate, rays);
-            engine.reset();
-            return engine;
-        };
-        GameSystem.EngineFactory engineB = sys -> {
-            if (ghost != null) {
-                ReplayEngine engine = new ReplayEngine(ghost);
-                engine.reset();
-                return engine;
-            } else if (vsGenome != null) {
-                NeatEngine engine = new NeatEngine(vsGenome, rays);
-                engine.reset();
-                return engine;
-            } else {
-                return new ComputerEngine(sys, level);
-            }
-        };
+
+        // ---- 池化引擎 A (被评估 AI) ----
+        NeatEngine engA = pooledEngineA.get();
+        if (engA == null) { engA = new NeatEngine(candidate, rays); pooledEngineA.set(engA); }
+        else engA.setGenome(candidate);
+        engA.reset();
+        final NeatEngine engineA = engA;
+
+        // ---- 池化引擎 B (对手) ----
+        final PlayerEngine engineB;
+        if (ghost != null) {
+            ReplayEngine rp = new ReplayEngine(ghost);
+            rp.reset();
+            engineB = rp;
+        } else if (vsGenome != null) {
+            NeatEngine engB = pooledEngineB.get();
+            if (engB == null) { engB = new NeatEngine(vsGenome, rays); pooledEngineB.set(engB); }
+            else engB.setGenome(vsGenome);
+            engB.reset();
+            engineB = engB;
+        } else {
+            engineB = new ComputerEngine(null, level);
+        }
+
         GameSystem sys = new GameSystem(app, false, false, 1.0f, null,
-                engineA, engineB, true, new Random(rngLocal.nextLong()));
-        MatchTracker tracker = new MatchTracker(sys.myGroup);
+                s -> engineA, s -> engineB, true, new Random(rngLocal.nextLong()));
+
+        // ---- 池化 Stats/Tracker ----
+        MatchTracker tracker = pooledTracker.get();
+        if (tracker == null) { tracker = new MatchTracker(sys.myGroup); pooledTracker.set(tracker); }
+        else tracker.reset(sys.myGroup);
+
         while (!(sys.currentState instanceof ResultGameState) && sys.frameCount < MAX_MATCH_FRAMES) {
             sys.update();
             tracker.update();
         }
-        MatchStats m = new MatchStats();
+
+        MatchStats m = pooledStats.get();
+        if (m == null) { m = new MatchStats(); pooledStats.set(m); }
+        else m.reset();
         m.frames = sys.frameCount;
         if (sys.currentState instanceof ResultGameState) {
             m.aiWon = ((ResultGameState) sys.currentState).winGroup == sys.myGroup.id;

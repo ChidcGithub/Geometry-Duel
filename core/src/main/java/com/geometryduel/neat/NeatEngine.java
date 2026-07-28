@@ -11,7 +11,7 @@ import com.geometryduel.game.engine.PlayerEngine;
 public class NeatEngine extends PlayerEngine {
     private static final int SKIP_FRAMES = 2;
 
-    private final NeatNetwork net;
+    private NeatNetwork net;
     private final VisionSensor sensor;
     private final float[] inputs, outputs;
     private int skipCounter;
@@ -27,6 +27,12 @@ public class NeatEngine extends PlayerEngine {
     public void reset() {
         skipCounter = 0;
         net.reset();
+    }
+
+    /** 换基因组重建网络，复用传感器和输入/输出数组（避免 GC） */
+    public void setGenome(Genome genome) {
+        this.net = new NeatNetwork(genome, sensor.inputSize() + 1, 5);
+        this.skipCounter = 0;
     }
 
     @Override

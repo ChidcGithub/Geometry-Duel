@@ -15,7 +15,7 @@ public class MatchTracker {
     public static final float AIM_TOLERANCE = 0.12f;
     public static final float PERFECT_AIM_TOLERANCE = 0.052f;  // ~3deg
 
-    private final ActorGroup group;
+    private ActorGroup group;
     private final ArrayList<ArrowActor> prevArrows = new ArrayList<ArrowActor>();
     private int prevRecallCount;
     private int frame;
@@ -52,6 +52,26 @@ public class MatchTracker {
 
     public MatchTracker(ActorGroup group) {
         this.group = group;
+    }
+
+    /** 重置所有计数器供复用 */
+    public void reset(ActorGroup newGroup) {
+        this.group = newGroup;
+        prevArrows.clear();
+        prevRecallCount = 0;
+        frame = 0;
+        lastRecallFrame = -COMBO_WINDOW;
+        enemyWasAlive = false;
+        lastAttackType = 0;
+        shotsFired = longShotsFired = teleportsUsed = teleportKills = aimedFrames = campFrames = 0;
+        longShotsHit = teleportsDodged = perfectAimFrames = 0;
+        teleportLongbowCombos = shortLongbowAlternate = teleportHitDefense = 0;
+        activeMoveFrames = chaseFrames = centerFrames = 0;
+        for (int i = 0; i < visitedZones.length; i++) visitedZones[i] = false;
+        keyMomentFrames = 0;
+        lastKillFrame = lastTeleportFrame = -999;
+        enemyLongbowAimFrames = 0;
+        longbowChargeFrames = 0;
     }
 
     public void update() {
