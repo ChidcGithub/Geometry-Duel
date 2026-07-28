@@ -13,19 +13,25 @@ public class HardwareInfo {
     public String gpuVendor;
     public String npuInfo;
 
-    private boolean detected;
+    private boolean detected, gpuDetected;
 
     public void detect() {
-        if (detected) return;
-        try {
-            gpuRenderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
-            gpuVendor = Gdx.gl.glGetString(GL20.GL_VENDOR);
-        } catch (Exception e) {
-            gpuRenderer = "Unknown";
-            gpuVendor = "Unknown";
+        // GPU 检测（允许在 GL 就绪后重试）
+        if (!gpuDetected) {
+            try {
+                gpuRenderer = Gdx.gl.glGetString(GL20.GL_RENDERER);
+                gpuVendor = Gdx.gl.glGetString(GL20.GL_VENDOR);
+                gpuDetected = true;
+            } catch (Exception e) {
+                gpuRenderer = "Unknown";
+                gpuVendor = "Unknown";
+            }
         }
-        npuInfo = detectNpu();
-        detected = true;
+        // NPU 检测（不需要 GL，只执行一次）
+        if (!detected) {
+            npuInfo = detectNpu();
+            detected = true;
+        }
     }
 
     private String detectNpu() {

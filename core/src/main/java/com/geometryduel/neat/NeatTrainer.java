@@ -20,12 +20,17 @@ import java.util.concurrent.atomic.AtomicLong;
 public class NeatTrainer {
     public static final int POPULATION = 150;
     private static final int MAX_MATCH_FRAMES = 180 + 7200;
-    private static final int MAX_GHOSTS = 5;
+    private static final int MAX_GHOSTS = 20;
     private static final int SIMS_PER_MATCH = 3;
     private static final int CHAMPION_POOL_SIZE = 5;
     private static final int HISTORICAL_CHAMPION_SIZE = 10;
     private static final int SAVE_INTERVAL = 5;
     private static final int PATIENCE = 40;
+
+    // 硬件感知的动态参数
+    private int dynamicPopulation;
+    private int dynamicSimsPerMatch;
+    private int dynamicSaveInterval;
 
     private final GeometryDuelGame app;
     private final Random rng = new Random();
@@ -66,11 +71,38 @@ public class NeatTrainer {
         this.rayCount = rayCount;
     }
 
+    private void initializeDynamicParameters() {
+        boolean hasNpu = app.hardware.npuInfo != null && !app.hardware.npuInfo.contains("None");
+        int cores = Runtime.getRuntime().availableProcessors();
+
+        // 种群规模：有NPU时增加50%
+        dynamicPopulation = hasNpu ? POPULATION * 3 / 2 : POPULATION;
+
+        // 模拟次数：有NPU时增加50%
+        dynamicSimsPerMatch = hasNpu ? SIMS_PER_MATCH * 3 / 2 : SIMS_PER_MATCH;
+
+        // 保存间隔：有NPU时更频繁保存（每3代），否则每5代
+        dynamicSaveInterval = hasNpu ? 3 : SAVE_INTERVAL;
+
+        Gdx.app.log("NeatTrainer", "dynamic params: pop=" + dynamicPopulation +
+                    ", sims=" + dynamicSimsPerMatch + ", saveInterval=" + dynamicSaveInterval);
+    }
+
     // ------------------------------------------------------------ 生命周期
 
     public void start() {
+        app.hardware.detect();
+        initializeDynamicParameters();
+
         int cores = Runtime.getRuntime().availableProcessors();
-        int workers = Math.max(4, cores);
+        int workers;
+        if (app.hardware.npuInfo != null && !app.hardware.npuInfo.contains("None")) {
+            workers = Math.max(8, cores * 2);
+        } else {
+            workers = Math.max(4, cores);
+        }
+        workers = Math.min(workers, 32);
+
         threadPool = Executors.newFixedThreadPool(workers, r -> {
             Thread t = new Thread(r, "neat-eval-" + Integer.toHexString(r.hashCode()));
             t.setDaemon(true);
@@ -80,6 +112,7 @@ public class NeatTrainer {
         thread = new Thread(() -> loop(), "neat-trainer");
         thread.setDaemon(true);
         thread.start();
+        Gdx.app.log("NeatTrainer", "started with " + workers + " workers, NPU: " + app.hardware.npuInfo);
     }
 
     public void shutdown() {
@@ -194,7 +227,7 @@ public class NeatTrainer {
             if (paused) { sleep(200); continue; }
             try { runGeneration(); checkConvergence(); }
             catch (Throwable t) { Gdx.app.error("NeatTrainer", "gen failed", t); sleep(1000); }
-            if (generation % SAVE_INTERVAL == 0) { saveNow(); if (generation % 20 == 0) verifySave(); }
+            if (generation % dynamicSaveInterval == 0) { saveNow(); if (generation % 20 == 0) verifySave(); }
         }
     }
 
@@ -220,8 +253,8 @@ public class NeatTrainer {
 
     private NeatEvolver newEvolver(int rays, ArrayList<Genome> pop, Genome.InnovationCounter counter) {
         int inputCount = new VisionSensor(rays).inputSize() + 1;
-        return counter == null ? new NeatEvolver(inputCount, 5, POPULATION, rng)
-                : new NeatEvolver(inputCount, 5, POPULATION, pop, counter, rng);
+        return counter == null ? new NeatEvolver(inputCount, 5, dynamicPopulation, rng)
+                : new NeatEvolver(inputCount, 5, dynamicPopulation, pop, counter, rng);
     }
 
     public static float shapingScale(int generation) {
@@ -266,10 +299,10 @@ public class NeatTrainer {
                 float f = 0f;
                 int n = 0;
 
-                f += evaluate(g, null, null, shaping, level); n++; simMatches.addAndGet(SIMS_PER_MATCH);
-                if (champOpponent != null) { f += evaluate(g, champOpponent, null, shaping, 1.0f); n++; simMatches.addAndGet(SIMS_PER_MATCH); }
-                if (ghost != null) { f += evaluate(g, null, ghost, shaping, 1.0f); n++; simMatches.addAndGet(SIMS_PER_MATCH); }
-                if (histChampion != null) { f += evaluate(g, histChampion, null, shaping, 1.0f); n++; simMatches.addAndGet(SIMS_PER_MATCH); }
+                f += evaluate(g, null, null, shaping, level); n++; simMatches.addAndGet(dynamicSimsPerMatch);
+                if (champOpponent != null) { f += evaluate(g, champOpponent, null, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
+                if (ghost != null) { f += evaluate(g, null, ghost, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
+                if (histChampion != null) { f += evaluate(g, histChampion, null, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
 
                 f /= n;
 
@@ -301,7 +334,7 @@ public class NeatTrainer {
                     float fA = evaluate(ga, gb, null, shaping, 1.0f);
                     float fB = evaluate(gb, ga, null, shaping, 1.0f);
                     synchronized (fitness) { fitness[a] += fA * 0.2f; fitness[b] += fB * 0.2f; }
-                    simMatches.addAndGet(SIMS_PER_MATCH * 2);
+                    simMatches.addAndGet(dynamicSimsPerMatch * 2);
                     sameGenLatch.countDown();
                 });
             }
@@ -343,10 +376,10 @@ public class NeatTrainer {
     private float evaluate(Genome candidate, Genome vsGenome, GhostData ghost, float shaping, float level) {
         Random r = rngPerThread.get();
         float sum = 0f;
-        for (int i = 0; i < SIMS_PER_MATCH; i++) {
+        for (int i = 0; i < dynamicSimsPerMatch; i++) {
             sum += simulate(candidate, vsGenome, ghost, level, r).fitness(shaping);
         }
-        return sum / SIMS_PER_MATCH;
+        return sum / dynamicSimsPerMatch;
     }
 
     private MatchStats simulate(final Genome candidate, final Genome vsGenome,
