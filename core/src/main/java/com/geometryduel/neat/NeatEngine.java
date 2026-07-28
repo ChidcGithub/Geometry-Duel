@@ -5,8 +5,8 @@ import com.geometryduel.game.engine.PlayerEngine;
 
 /**
  * NEAT 驱动的玩家引擎：每 3 帧推理一次（20 Hz），跳过帧复用上次决策。
- * 输出 5 路：moveX/moveY（连续，死区 0.05）、shot/longShot/teleport（滞回阈值：
- * >0.5 按下、<0.3 松开，防止阈值附近抖动）。
+ * 输出 5 路：moveX/moveY（连续，死区 0.05）、shot（>0.5/0.3）、
+ * longShot（>0.3/0.15 低门槛鼓励探索大招）、teleport（>0.5/0.3）。
  */
 public class NeatEngine extends PlayerEngine {
     private static final int SKIP_FRAMES = 2;
@@ -46,13 +46,12 @@ public class NeatEngine extends PlayerEngine {
         if (Math.abs(mx) < 0.05f) mx = 0f;
         if (Math.abs(my) < 0.05f) my = 0f;
         operateMove(mx, my);
-        operateShotButton(hysteresis(2, shotButtonPressed));
-        operateLongShotButton(hysteresis(3, longShotButtonPressed));
-        operateTeleportButton(hysteresis(4, teleportButtonPressed));
+        operateShotButton(hysteresis(outputs[2], 0.5f, 0.3f, shotButtonPressed));
+        operateLongShotButton(hysteresis(outputs[3], 0.3f, 0.15f, longShotButtonPressed));
+        operateTeleportButton(hysteresis(outputs[4], 0.5f, 0.3f, teleportButtonPressed));
     }
 
-    private boolean hysteresis(int idx, boolean current) {
-        float v = outputs[idx];
-        return current ? v >= 0.3f : v > 0.5f;
+    private static boolean hysteresis(float v, float onThresh, float offThresh, boolean current) {
+        return current ? v >= offThresh : v > onThresh;
     }
 }

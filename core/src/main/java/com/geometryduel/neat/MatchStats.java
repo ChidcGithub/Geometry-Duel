@@ -48,6 +48,7 @@ public class MatchStats {
     // ---- 混合回放 (1.5) ----
     public int keyMomentFrames;
     public int enemyLongbowAimFrames;   // 敌人蓄长弓瞄准自己的帧数
+    public int longbowChargeFrames;     // 自身蓄长弓帧数
 
     public float fitness(float shaping) {
         int playFrames = Math.max(1, frames - COUNTDOWN_FRAMES);
@@ -63,9 +64,13 @@ public class MatchStats {
         f -= enemyLongbowAimFrames / (float) playFrames * 30f;
 
         // —— 精度奖励 (1.3) ——
-        f += longShotsHit * 20f * shaping;
+        f += longShotsHit * 30f * shaping;  // 长弓命中重奖（20→30）
         f += teleportsDodged * 10f * shaping;
         f += Math.min(perfectAimFrames, 300) * 0.08f * shaping;
+
+        // —— 大招尝试奖励：即使没中也鼓励蓄力和射出 ——
+        f += longbowChargeFrames / (float) playFrames * 20f * shaping;  // 蓄力时间比奖励
+        f += Math.min(longShotsFired, 10) * 8f * shaping;  // 发射长弓即奖（不必命中）
 
         // —— 技能组合奖励 (1.1) ——
         float combo = 0f;

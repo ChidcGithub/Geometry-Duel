@@ -48,6 +48,7 @@ public class MatchTracker {
     private int lastKillFrame = -999;  // 上次击杀帧
     private int lastTeleportFrame = -999;
     public int enemyLongbowAimFrames;  // 敌人蓄长弓瞄准自己
+    public int longbowChargeFrames;    // 自身蓄长弓帧数（鼓励尝试大招）
 
     public MatchTracker(ActorGroup group) {
         this.group = group;
@@ -123,6 +124,7 @@ public class MatchTracker {
 
         // ---- 大招瞄准追踪 ----
         if (p != null && enemy != null && p.state instanceof DrawLongbowState) {
+            longbowChargeFrames++;  // 只要蓄力就给基础奖励
             float want = (float) Math.atan2(enemy.pos.y - p.pos.y, enemy.pos.x - p.pos.x);
             float err = p.aimAngle - want;
             while (err > 3.1415927f) err -= 6.2831855f;
@@ -216,6 +218,7 @@ public class MatchTracker {
         m.centerFrames = centerFrames;
         m.keyMomentFrames = keyMomentFrames;
         m.enemyLongbowAimFrames = enemyLongbowAimFrames;
+        m.longbowChargeFrames = longbowChargeFrames;
 
         // 计算位置多样性：访问的不同区域数量 / 9
         int visitedCount = 0;
