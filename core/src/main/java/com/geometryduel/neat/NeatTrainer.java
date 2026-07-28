@@ -216,7 +216,11 @@ public class NeatTrainer {
 
     // ------------------------------------------------------------ 外部接口
 
-    public void setPaused(boolean p) { paused = p; }
+    public void setPaused(boolean p) {
+        paused = p;
+        // 暂停（如退后台）时立即落盘，避免距上次存盘 30s 内的进化进度丢失
+        if (p) { saveNow(); lastSaveMs = System.currentTimeMillis(); }
+    }
 
     public void reportRealMatch(MatchStats m) {
         playerWins += m.aiWon ? 1 : 0;
