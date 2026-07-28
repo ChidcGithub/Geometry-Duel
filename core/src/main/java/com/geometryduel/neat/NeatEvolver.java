@@ -38,16 +38,15 @@ public class NeatEvolver {
         Genome g = new Genome();
         for (int i = 0; i < inputCount; i++) g.nodes.add(new Genome.NodeGene(i, Genome.INPUT));
         for (int i = 0; i < outputCount; i++) g.nodes.add(new Genome.NodeGene(inputCount + i, Genome.OUTPUT));
-        int innov = 0;
         for (int i = 0; i < inputCount; i++) {
             for (int o = 0; o < outputCount; o++) {
                 g.conns.add(new Genome.ConnectionGene(i, inputCount + o,
-                        rng.nextFloat() * 2f - 1f, innov++));
+                        rng.nextFloat() * 2f - 1f, i * outputCount + o));
             }
         }
-        int bootstrap = 3 + rng.nextInt(3);
-        Genome.InnovationCounter bc = new Genome.InnovationCounter(innov, inputCount + outputCount);
-        for (int k = 0; k < bootstrap; k++) g.mutateAddNode(rng, bc);
+        // bootstrap 12~18 hidden nodes（使用主 counter 保证创新号一致）
+        int bootstrap = 12 + rng.nextInt(7);
+        for (int k = 0; k < bootstrap; k++) g.mutateAddNode(rng, counter);
         return g;
     }
 
@@ -156,7 +155,7 @@ public class NeatEvolver {
 
     private void mutate(Genome g) {
         float r = rng.nextFloat();
-        if (r < 0.46f) g.mutateWeights(rng);
+        if (r < 0.41f) g.mutateWeights(rng);
         else if (r < 0.66f) g.mutateAddNode(rng, counter);
         else if (r < 0.80f) g.mutateAddConnection(rng, counter);
         else if (r < 0.86f) g.mutateToggleConnection(rng);
