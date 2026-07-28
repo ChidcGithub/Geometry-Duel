@@ -11,6 +11,7 @@ import com.geometryduel.render.Shapes;
  * - 箭生成于玩家前方 24 处，初速 24
  * - 移动减速为 0.25 倍
  * - 特效：70 长瞄准线 + 半径 50、张角 45° 的弓弧
+ * - 首次按下时立即锁定敌人方向，长按时缓慢转向
  */
 public class DrawShortbowState extends PlayerState {
     public static final int FIRE_INTERVAL = 12;
@@ -19,20 +20,33 @@ public class DrawShortbowState extends PlayerState {
     public static final float AIM_TURN_SPEED = 0.035f; // 对焦速度 2°/帧（180° 转身需 1.5 秒）
 
     private final GameSystem sys;
+    private boolean firstPress = true;  // 首次按下标志
 
     public DrawShortbowState(GameSystem sys) {
         this.sys = sys;
     }
 
     @Override
+    public PlayerState entryState(PlayerActor p) {
+        firstPress = true;  // 进入状态时重置首次按下标志
+        return this;
+    }
+
+    @Override
     public void act(PlayerActor p) {
-        // 缓慢追踪：每帧向敌人方向最多转 AIM_TURN_SPEED
-        float diff = enemyAngle(p) - p.aimAngle;
-        while (diff > 3.1415927f) diff -= 6.2831855f;
-        while (diff < -3.1415927f) diff += 6.2831855f;
-        if (diff > AIM_TURN_SPEED) diff = AIM_TURN_SPEED;
-        else if (diff < -AIM_TURN_SPEED) diff = -AIM_TURN_SPEED;
-        p.aimAngle += diff;
+        // 首次按下时立即锁定敌人方向
+        if (firstPress) {
+            p.aimAngle = enemyAngle(p);
+            firstPress = false;
+        } else {
+            // 长按时缓慢追踪：每帧向敌人方向最多转 AIM_TURN_SPEED
+            float diff = enemyAngle(p) - p.aimAngle;
+            while (diff > 3.1415927f) diff -= 6.2831855f;
+            while (diff < -3.1415927f) diff += 6.2831855f;
+            if (diff > AIM_TURN_SPEED) diff = AIM_TURN_SPEED;
+            else if (diff < -AIM_TURN_SPEED) diff = -AIM_TURN_SPEED;
+            p.aimAngle += diff;
+        }
         p.addVelocity(p.engine.horizontalMove * MOVE_SCALE, p.engine.verticalMove * MOVE_SCALE);
         if (sys.frameCount % FIRE_INTERVAL == 0) fire(p);
         if (!p.engine.shotButtonPressed) {
@@ -53,11 +67,6 @@ public class DrawShortbowState extends PlayerState {
 
     @Override
     public void update(PlayerActor p) {
-    }
-
-    @Override
-    public PlayerState entryState(PlayerActor p) {
-        return this;
     }
 
     @Override
