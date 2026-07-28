@@ -12,7 +12,6 @@ package com.geometryduel.neat;
 public class MatchStats {
     public static final int COUNTDOWN_FRAMES = 180;
     public static final int QUICK_WIN_FRAMES = 3600;
-    public static final float OVERTIME_PENALTY_PER_SEC = 2f;
     public static final float BEHAVIOR_CAP = 50f;
 
     // ---- 基础 ----
@@ -60,7 +59,7 @@ public class MatchStats {
         f += Math.min(frames, 7200) / 7200f * 40f * (1f - wallRatio * 0.8f);
         f += hitsDealt * 15f;
         f -= hitsTaken * 10f;  // 受击翻倍（-5→-10，角落更容易被瞄准）
-        f -= wallRatio * 60f;
+        f -= wallRatio * 250f;  // 靠墙重罚（绝对值>>胜利分，彻底抑制蹲坑）
         f -= enemyLongbowAimFrames / (float) playFrames * 30f;
 
         // —— 精度奖励 (1.3) ——
@@ -103,9 +102,13 @@ public class MatchStats {
         if (behavior > BEHAVIOR_CAP) behavior = BEHAVIOR_CAP;
         f += behavior;
 
-        // —— 超时惩罚 ——
+        // —— 超时惩罚（二次方加速，靠墙者刑罚加倍） ——
         if (playFrames > QUICK_WIN_FRAMES) {
-            f -= (playFrames - QUICK_WIN_FRAMES) / 60f * OVERTIME_PENALTY_PER_SEC;
+            float overtimeSec = (playFrames - QUICK_WIN_FRAMES) / 60f;
+            // 平方增长: 10s→150, 20s→600, 30s→1350
+            f -= overtimeSec * overtimeSec * 1.5f * (1f + wallRatio);
+            // 超 20 秒未胜 → 归零，强推击杀欲望
+            if (!aiWon && overtimeSec > 20f) f = Math.min(f, -10f);
         }
         return f;
     }
