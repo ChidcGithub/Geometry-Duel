@@ -34,7 +34,6 @@ public class NeatTrainer {
     private volatile int rayCount;
     private volatile NeatEvolver evolver;
     private volatile Genome champion;
-    private Genome championSource;
     private final ArrayList<Genome> championPool = new ArrayList<Genome>();
 
     private volatile int generation;
@@ -83,7 +82,6 @@ public class NeatTrainer {
         NeatStorage.clear();
         ghosts.clear();
         champion = null;
-        championSource = null;
         championPool.clear();
         generation = 0;
         bestFitness = 0f;
@@ -214,8 +212,13 @@ public class NeatTrainer {
         float shaping = shapingScale(generation);
         float level = progressiveLevel(generation);
 
-        // 固定本代的幽灵（同一代内所有个体面对同一个幽灵，公平比较）
+        // 整代固定陪练（公平比较同代内所有个体）
         final GhostData ghost = pickGhost();
+        final Genome champOpponent = pickChampion();
+
+        // 秒拍实战奖励，本轮结束时加到最优个体上
+        float bonusToApply = realMatchBonus;
+        realMatchBonus = 0f;
 
         for (int i = 0; i < pop.size(); i++) {
             if (stopped || paused || ev != evolver) return;
@@ -223,20 +226,16 @@ public class NeatTrainer {
             float f = 0f;
             int n = 0;
 
-            // vs 规则 AI（渐进难度）
             f += evaluate(g, null, null, shaping, level);
             n++;
             simMatches += SIMS_PER_MATCH;
 
-            // vs 冠军池随机一名冠军
-            Genome champOpponent = pickChampion();
             if (champOpponent != null) {
                 f += evaluate(g, champOpponent, null, shaping, 1.0f);
                 n++;
                 simMatches += SIMS_PER_MATCH;
             }
 
-            // vs 玩家幽灵
             if (ghost != null) {
                 f += evaluate(g, null, ghost, shaping, 1.0f);
                 n++;
@@ -244,7 +243,6 @@ public class NeatTrainer {
             }
 
             f /= n;
-            if (g == championSource) f += realMatchBonus;
             fitness[i] = f;
         }
 
@@ -253,18 +251,17 @@ public class NeatTrainer {
             if (fitness[i] > fitness[best]) best = i;
         }
 
-        // 冠军入池（FIFO 5 代，保持策略多样性）
+        fitness[best] += bonusToApply;
+
         Genome newChamp = pop.get(best).copy();
         championPool.add(0, newChamp);
         while (championPool.size() > CHAMPION_POOL_SIZE) {
             championPool.remove(championPool.size() - 1);
         }
         champion = newChamp;
-        championSource = pop.get(best);
         bestFitness = Math.max(bestFitness, fitness[best]);
         ev.nextGeneration(fitness);
         generation++;
-        // 实战奖励不再衰减
     }
 
     /** 同一对手打 SIMS_PER_MATCH 局，返回平均适应度。 */
