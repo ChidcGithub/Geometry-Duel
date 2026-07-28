@@ -1,41 +1,55 @@
 package com.geometryduel.neat;
 
-/** 一局对战的统计数据（从被评估 AI 的视角），供适应度计算与实战上报。 */
+/**
+ * 一局对战的统计数据（从被评估 AI 的视角），供适应度计算与实战上报。
+ *
+ * 适应度设计原则：
+ *   1. 胜利永远最大：胜利分(100) > 全部行为奖励之和(≤30)
+ *   2. 只看效果：奖励「命中」而非「射箭次数」，避免刷招
+ *   3. 存活有价值：输了但活得久的个体 > 秒死的个体
+ */
 public class MatchStats {
-    public static final int COUNTDOWN_FRAMES = 180;        // 开场倒计时（不计入对战时间）
-    public static final int QUICK_WIN_FRAMES = 3600;       // 60 秒内结束不受罚
-    public static final float OVERTIME_PENALTY_PER_SEC = 2f; // 超时每秒扣分
+    public static final int COUNTDOWN_FRAMES = 180;
+    public static final int QUICK_WIN_FRAMES = 3600;
+    public static final float OVERTIME_PENALTY_PER_SEC = 2f;
+
+    /** 所有行为奖励（长弓/传送/瞄准）的总软上限：不超过胜利分的 30%。 */
+    public static final float BEHAVIOR_CAP = 30f;
 
     public boolean aiWon;
-    public int frames;          // 存活帧数（对局总帧数，含倒计时）
-    public int hitsDealt;       // 对敌方造成的受击次数
-    public int hitsTaken;       // 自身受击次数
-    public int shotsFired;      // 射出的短箭数
-    public int longShotsFired;  // 射出的长箭数（大招）
-    public int teleportsUsed;   // 传送（闪避）使用次数
-    public int teleportKills;   // 传送后 5 秒内击杀对手的次数（连击）
-    public int aimedFrames;     // 蓄长弓期间瞄准线对准敌人（误差<7°）的帧数
+    public int frames;
+    public int hitsDealt;
+    public int hitsTaken;
+    public int shotsFired;
+    public int longShotsFired;
+    public int teleportsUsed;
+    public int teleportKills;
+    public int aimedFrames;
 
     /**
-     * 适应度：胜利大分 + 存活时间 + 命中奖励 - 受击惩罚 + 技能使用行为奖励。
-     * 行为奖励（reward shaping）带封顶、权重远小于胜负/命中：
-     * 引导网络先学会「会用技能」，再由胜负大分主导进化，避免学会刷招。
+     * 适应度 = 效果项（无上限） + 行为项（软上限 30） - 超时惩罚。
      *
-     * @param shaping 课程式系数：前期 >1 强行引导技能使用，随世代衰减到 0.2 保底
+     * @param shaping 课程式系数（前期高，引导技能探索；后期低，由胜负主导）
      */
     public float fitness(float shaping) {
+        // —— 效果项：分量重、无上限 ——
         float f = aiWon ? 100f : 0f;
-        f += Math.min(frames, 7200) / 7200f * 20f;
+        f += Math.min(frames, 7200) / 7200f * 40f;
         f += hitsDealt * 15f;
         f -= hitsTaken * 5f;
-        f += Math.min(shotsFired, 40) * 0.5f * shaping;
-        f += Math.min(longShotsFired, 10) * 12f * shaping; // 大招重奖（12/支，鼓励用大招）
-        f += Math.min(teleportsUsed, 8) * 2f * shaping;   // 闪避轻奖（随课程衰减但不归零）
-        f += teleportKills * 20f; // 传送→5秒内击杀连击：+20，不衰减，鼓励「闪避是为了进攻」
-        // 大招瞄准奖：蓄力期间对准敌人的每帧 +0.05（封顶 300 帧=5 秒），稠密信号引导学会瞄准
-        f += Math.min(aimedFrames, 300) * 0.05f * shaping;
-        // 超时惩罚：对战时间超过 60 秒仍未分出胜负，分数开始线性降低（-2 分/秒），
-        // 2 分钟打满时 -120 分已超过胜利分——逼迫 AI 主动进攻尽快击杀，而非拖时间
+
+        // —— 行为项：轻量引导，总和封顶 30 ——
+        float behavior = 0f;
+        behavior += Math.min(longShotsFired, 5) * 3f * shaping;
+        behavior += Math.min(teleportsUsed, 3) * 1f * shaping;
+        behavior += teleportKills * 20f;                   // 传送连杀不参与 cap（含金量高）
+        behavior += Math.min(aimedFrames, 300) * 0.03f * shaping;
+        // 不含 teleportKills 的软上限
+        float nonComboCap = behavior - teleportKills * 20f;
+        if (nonComboCap > BEHAVIOR_CAP) behavior = BEHAVIOR_CAP + teleportKills * 20f;
+        f += behavior;
+
+        // —— 超时惩罚 ——
         int playFrames = frames - COUNTDOWN_FRAMES;
         if (playFrames > QUICK_WIN_FRAMES) {
             f -= (playFrames - QUICK_WIN_FRAMES) / 60f * OVERTIME_PENALTY_PER_SEC;
@@ -43,7 +57,6 @@ public class MatchStats {
         return f;
     }
 
-    /** 无课程缩放（shaping=1）。 */
     public float fitness() {
         return fitness(1f);
     }

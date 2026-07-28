@@ -6,8 +6,8 @@ import com.geometryduel.game.state.DamagedState;
 import com.geometryduel.game.state.DrawLongbowState;
 
 /**
- * 射线视觉感知：以 AI 为中心发出 rayCount 条射线，采样边界/敌人/来箭的
- * 最近距离并做类型编码；叠加 7 项全局状态。
+ * 射线视觉感知：以 AI 为中心发出 rayCount 条射线，射线方向跟随 AI 瞄准角旋转，
+ * 采样边界/敌人/来箭的最近距离并做类型编码；叠加 9 项全局状态。
  *
  * 每条射线输出一个 [-1,1] 的值：
  *   [-1,-0.5) 普通来箭（负值=危险，越近绝对值越大）
@@ -15,11 +15,20 @@ import com.geometryduel.game.state.DrawLongbowState;
  *   [ 0, 0.5] 场地边界
  *   ( 0.5, 1] 敌人
  *   0         空视野
- * 全局状态（7）：敌人方位 cos/sin、距离、受击进度、长弓蓄力、传送充能、瞄准角差。
+ *
+ * 全局状态（9）：
+ *   0-1  敌人方位 cos/sin
+ *   2    敌人距离（归一化）
+ *   3    自身受击进度
+ *   4    自身长弓蓄力进度
+ *   5    自身传送充能剩余
+ *   6    瞄准角差（当前瞄准 vs 敌人方向，归一化）
+ *   7    敌人是否在蓄长弓（二进制）
+ *   8    敌人是否处于受击状态（归一化）
  */
 public class VisionSensor {
-    public static final int GLOBAL_INPUTS = 7;
-    private static final float MAX_SIGHT = 860f; // 640 场地的对角线级视野
+    public static final int GLOBAL_INPUTS = 9;
+    private static final float MAX_SIGHT = 860f;
 
     public final int rayCount;
 
@@ -40,15 +49,19 @@ public class VisionSensor {
         return rayCount + GLOBAL_INPUTS;
     }
 
-    /** 感知当前局势写入 out（长度须 >= inputSize()）。 */
     public void sense(PlayerActor self, float[] out) {
         PlayerActor enemy = self.group.enemyGroup.firstPlayer();
         float px = self.pos.x, py = self.pos.y;
 
-        for (int i = 0; i < rayCount; i++) {
-            float dx = cos[i], dy = sin[i];
+        float cosAim = (float) Math.cos(self.aimAngle);
+        float sinAim = (float) Math.sin(self.aimAngle);
 
-            // 边界（玩家活动范围 16..624）解析求交
+        for (int i = 0; i < rayCount; i++) {
+            // 射线方向 = 基础方向 旋转 aimAngle（正前方向量与射线对准→开火更有用）
+            float dx = cos[i] * cosAim - sin[i] * sinAim;
+            float dy = sin[i] * cosAim + cos[i] * sinAim;
+
+            // 边界求交
             float tWall;
             if (dx > 0.0001f) tWall = (624f - px) / dx;
             else if (dx < -0.0001f) tWall = (16f - px) / dx;
@@ -60,22 +73,16 @@ public class VisionSensor {
             if (tY < tWall) tWall = tY;
 
             float best = tWall;
-            int type = 0; // 0 墙 1 敌 2 普通箭 3 致命箭
+            int type = 0;
 
             if (enemy != null) {
                 float t = rayCircle(px, py, dx, dy, enemy.pos.x, enemy.pos.y, 16f);
-                if (t < best) {
-                    best = t;
-                    type = 1;
-                }
+                if (t < best) { best = t; type = 1; }
             }
             for (int j = 0; enemy != null && j < enemy.group.arrows.size(); j++) {
                 ArrowActor a = enemy.group.arrows.get(j);
                 float t = rayCircle(px, py, dx, dy, a.pos.x, a.pos.y, a.collisionRadius + 4f);
-                if (t < best) {
-                    best = t;
-                    type = a.isLethal() ? 3 : 2;
-                }
+                if (t < best) { best = t; type = a.isLethal() ? 3 : 2; }
             }
 
             float near = Math.max(0f, 1f - Math.min(best, MAX_SIGHT) / MAX_SIGHT);
@@ -88,6 +95,7 @@ public class VisionSensor {
         }
 
         int g = rayCount;
+        // 全局 0-6：与旧版兼容位置不变
         if (enemy != null) {
             float ex = enemy.pos.x - px, ey = enemy.pos.y - py;
             float dist = (float) Math.sqrt(ex * ex + ey * ey);
@@ -108,9 +116,13 @@ public class VisionSensor {
                 ? Math.min(1f, self.chargedFrameCount / (float) DrawLongbowState.CHARGE_REQUIRED) : 0f;
         out[g + 5] = self.teleportMarked
                 ? self.teleportMarkRemaining / (float) PlayerActor.TELEPORT_MARK_DURATION : 0f;
+
+        // 新增全局 7-8：敌人状态感知
+        out[g + 7] = (enemy != null && enemy.state instanceof DrawLongbowState) ? 1f : 0f;
+        out[g + 8] = (enemy != null && enemy.state.isDamaged())
+                ? enemy.damageRemainingFrameCount / (float) DamagedState.DURATION : 0f;
     }
 
-    /** 射线-圆求交，返回最近正距离；未命中返回 MAX_SIGHT。 */
     private static float rayCircle(float px, float py, float dx, float dy,
                                    float cx, float cy, float r) {
         float ox = cx - px, oy = cy - py;

@@ -12,25 +12,30 @@ import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * 后台训练线程：无头 GameSystem 快速模拟（候选 vs 规则 AI / 名人堂冠军），
+ * 后台训练线程：无头 GameSystem 快速模拟（候选 vs 规则 AI / 冠军池 / 玩家幽灵），
  * 按适应度驱动 NeatEvolver 逐代进化；冠军基因组供玩家对局使用。
  *
- * 线程模型：单后台线程持续跑代，玩家对局进行中由 GameScreen 暂停；
- * 每 10 代写盘一次，shutdown 时最终保存。
+ * 改进：
+ * - 每对手 3 局取平均（降低方差）
+ * - 规则 AI 难度渐进（gen 0: 0.3 → gen 140: 1.0）
+ * - 冠军陪练池 FIFO 5 代（保持策略多样性）
+ * - 实战奖励不随时间衰减
  */
 public class NeatTrainer {
     public static final int POPULATION = 50;
-    private static final int MAX_MATCH_FRAMES = 180 + 7200; // 倒计时 + 2 分钟
-    private static final int MAX_GHOSTS = 5;                // 玩家幽灵池上限（FIFO）
+    private static final int MAX_MATCH_FRAMES = 180 + 7200;
+    private static final int MAX_GHOSTS = 5;
+    private static final int SIMS_PER_MATCH = 3;
+    private static final int CHAMPION_POOL_SIZE = 5;
 
     private final GeometryDuelGame app;
     private final Random rng = new Random();
 
     private volatile int rayCount;
     private volatile NeatEvolver evolver;
-    private volatile Genome champion;      // 历史最佳（深拷贝，绝不变异）
-    private Genome championSource;         // 冠军在种群中的源引用（用于实战奖励加成）
-    private Genome hallOfFame;             // 上一代冠军（陪练对手）
+    private volatile Genome champion;
+    private Genome championSource;
+    private final ArrayList<Genome> championPool = new ArrayList<Genome>();
 
     private volatile int generation;
     private volatile float bestFitness;
@@ -38,7 +43,6 @@ public class NeatTrainer {
     private volatile boolean paused;
     private volatile boolean stopped;
     private float realMatchBonus;
-    /** 玩家行为录像池（UI 线程写、训练线程读，CopyOnWrite 保证安全）。 */
     private final CopyOnWriteArrayList<GhostData> ghosts = new CopyOnWriteArrayList<GhostData>();
 
     private Thread thread;
@@ -74,14 +78,13 @@ public class NeatTrainer {
         saveNow();
     }
 
-    /** 清空存档并从零进化（射线数变更时也必须调用，因输入维度变化）。 */
     public void reset(int newRayCount) {
         rayCount = newRayCount;
         NeatStorage.clear();
         ghosts.clear();
         champion = null;
         championSource = null;
-        hallOfFame = null;
+        championPool.clear();
         generation = 0;
         bestFitness = 0f;
         simMatches = 0;
@@ -100,21 +103,13 @@ public class NeatTrainer {
         paused = p;
     }
 
-    /**
-     * 玩家实战结果上报：打赢玩家重奖 +1000（强烈信号：实战胜利远高于一切模拟指标），
-     * 输掉 -30；传送→5秒内击杀玩家的连击 +20/次（不衰减）；含技能小奖。
-     */
+    /** 玩家实战结果上报：只看输赢和传送连杀。 */
     public void reportRealMatch(MatchStats m) {
-        realMatchBonus += (m.aiWon ? 1000f : -30f)
-                + Math.min(m.longShotsFired, 10) * 3f
-                + Math.min(m.teleportsUsed, 8) * 1f
-                + m.teleportKills * 20f
-                + Math.min(m.aimedFrames, 300) * 0.05f;
+        realMatchBonus += (m.aiWon ? 1000f : -30f) + m.teleportKills * 20f;
     }
 
-    /** 录入一局玩家行为录像（幽灵陪练），FIFO 保留最近 MAX_GHOSTS 局并落盘。 */
     public void addGhost(GhostData g) {
-        if (g == null || g.frames < 300) return; // 短于 5 秒的录像没有学习价值
+        if (g == null || g.frames < 300) return;
         ghosts.add(0, g);
         while (ghosts.size() > MAX_GHOSTS) ghosts.remove(ghosts.size() - 1);
         NeatStorage.saveGhosts(new ArrayList<GhostData>(ghosts));
@@ -127,6 +122,11 @@ public class NeatTrainer {
     private GhostData pickGhost() {
         if (ghosts.isEmpty()) return null;
         return ghosts.get(rng.nextInt(ghosts.size()));
+    }
+
+    private Genome pickChampion() {
+        if (championPool.isEmpty()) return null;
+        return championPool.get(rng.nextInt(championPool.size()));
     }
 
     public Genome currentChampion() {
@@ -171,7 +171,8 @@ public class NeatTrainer {
             bestFitness = d.bestFitness;
             simMatches = d.simMatches;
             champion = d.champion;
-            hallOfFame = null;
+            championPool.clear();
+            if (champion != null) championPool.add(champion);
             evolver = newEvolver(rayCount, d.population,
                     new Genome.InnovationCounter(d.nextInnovation, d.nextNode));
             Gdx.app.log("NeatTrainer", "loaded save: gen " + generation + " best " + bestFitness);
@@ -187,18 +188,23 @@ public class NeatTrainer {
 
     private NeatEvolver newEvolver(int rays, ArrayList<Genome> population,
                                    Genome.InnovationCounter counter) {
-        int inputCount = new VisionSensor(rays).inputSize() + 1; // +1 偏置
+        int inputCount = new VisionSensor(rays).inputSize() + 1;
         return counter == null
                 ? new NeatEvolver(inputCount, 5, POPULATION, rng)
                 : new NeatEvolver(inputCount, 5, POPULATION, population, counter, rng);
     }
 
     /**
-     * 课程式奖励系数：gen 0 ≈ 3.0（强行 bootstrap 技能使用）→ 指数衰减 → 0.2 保底。
-     * 约 80 代后回到 ~1.2，160 代后 ~0.6，技能已成为手段而非目标。
+     * 课程式奖励系数：gen 0 ≈ 3.0 → 指数衰减 → 0.2 保底。
+     * 行为奖励已内置软上限 30，shaping 只影响技能引导项的力度。
      */
     public static float shapingScale(int generation) {
         return 0.2f + 2.8f * (float) Math.exp(-generation / 80.0);
+    }
+
+    /** 渐进式规则 AI 难度：gen 0 → 0.3，每 20 代 +0.1，约 gen 140 达到 1.0。 */
+    private static float progressiveLevel(int generation) {
+        return Math.min(1.0f, 0.3f + generation * 0.005f);
     }
 
     private void runGeneration() {
@@ -206,26 +212,37 @@ public class NeatTrainer {
         ArrayList<Genome> pop = ev.population;
         float[] fitness = new float[pop.size()];
         float shaping = shapingScale(generation);
+        float level = progressiveLevel(generation);
+
+        // 固定本代的幽灵（同一代内所有个体面对同一个幽灵，公平比较）
+        final GhostData ghost = pickGhost();
+
         for (int i = 0; i < pop.size(); i++) {
-            if (stopped || paused || ev != evolver) return; // 代中止：不进化，下轮重跑
+            if (stopped || paused || ev != evolver) return;
             Genome g = pop.get(i);
             float f = 0f;
             int n = 0;
-            f += simulate(g, null, null).fitness(shaping); // vs 规则 AI
+
+            // vs 规则 AI（渐进难度）
+            f += evaluate(g, null, null, shaping, level);
             n++;
-            simMatches++;
-            Genome hof = hallOfFame;
-            if (hof != null) {
-                f += simulate(g, hof, null).fitness(shaping); // vs 上代冠军
+            simMatches += SIMS_PER_MATCH;
+
+            // vs 冠军池随机一名冠军
+            Genome champOpponent = pickChampion();
+            if (champOpponent != null) {
+                f += evaluate(g, champOpponent, null, shaping, 1.0f);
                 n++;
-                simMatches++;
+                simMatches += SIMS_PER_MATCH;
             }
-            GhostData ghost = pickGhost();
+
+            // vs 玩家幽灵
             if (ghost != null) {
-                f += simulate(g, null, ghost).fitness(shaping); // vs 玩家影子
+                f += evaluate(g, null, ghost, shaping, 1.0f);
                 n++;
-                simMatches++;
+                simMatches += SIMS_PER_MATCH;
             }
+
             f /= n;
             if (g == championSource) f += realMatchBonus;
             fitness[i] = f;
@@ -235,22 +252,33 @@ public class NeatTrainer {
         for (int i = 1; i < fitness.length; i++) {
             if (fitness[i] > fitness[best]) best = i;
         }
-        // 课程式奖励下跨代适应度不可直接比较：每代滚动晋升当代最优为冠军，
-        // 上代冠军转为名人堂陪练（新一代必须能打赢它才能拿高分，形成自我对弈锚点）
-        hallOfFame = champion;
-        champion = pop.get(best).copy();
+
+        // 冠军入池（FIFO 5 代，保持策略多样性）
+        Genome newChamp = pop.get(best).copy();
+        championPool.add(0, newChamp);
+        while (championPool.size() > CHAMPION_POOL_SIZE) {
+            championPool.remove(championPool.size() - 1);
+        }
+        champion = newChamp;
         championSource = pop.get(best);
         bestFitness = Math.max(bestFitness, fitness[best]);
         ev.nextGeneration(fitness);
         generation++;
-        realMatchBonus *= 0.7f;
+        // 实战奖励不再衰减
     }
 
-    /**
-     * 无头快速模拟一局：候选为 myGroup；对手按优先级为 玩家幽灵 > 指定基因组（名人堂） > 规则 AI。
-     * 逻辑/渲染已分离，全程纯 Java 运算。
-     */
-    private MatchStats simulate(final Genome candidate, final Genome vsGenome, final GhostData ghost) {
+    /** 同一对手打 SIMS_PER_MATCH 局，返回平均适应度。 */
+    private float evaluate(Genome candidate, Genome vsGenome, GhostData ghost,
+                           float shaping, float level) {
+        float sum = 0f;
+        for (int i = 0; i < SIMS_PER_MATCH; i++) {
+            sum += simulate(candidate, vsGenome, ghost, level).fitness(shaping);
+        }
+        return sum / SIMS_PER_MATCH;
+    }
+
+    private MatchStats simulate(final Genome candidate, final Genome vsGenome,
+                                final GhostData ghost, final float level) {
         final int rays = rayCount;
         GameSystem.EngineFactory engineA = new GameSystem.EngineFactory() {
             @Override
@@ -263,7 +291,7 @@ public class NeatTrainer {
             public PlayerEngine create(GameSystem sys) {
                 return ghost != null ? (PlayerEngine) new ReplayEngine(ghost)
                         : vsGenome != null ? (PlayerEngine) new NeatEngine(vsGenome, rays)
-                        : new ComputerEngine(sys, 1.0f);
+                        : new ComputerEngine(sys, level);
             }
         };
         GameSystem sys = new GameSystem(app, false, false, 1.0f, null,

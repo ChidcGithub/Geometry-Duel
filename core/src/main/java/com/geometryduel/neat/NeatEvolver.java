@@ -89,18 +89,16 @@ public class NeatEvolver {
             }
         }
 
-        // 3. 精英保留（物种规模 >= 5 保留头名）
+        // 3. 精英保留（物种规模 >= 3 保留头名）
         ArrayList<Genome> next = new ArrayList<Genome>();
-        boolean[] isElite = new boolean[population.size()];
         for (int s = 0; s < species.size(); s++) {
             ArrayList<Integer> members = species.get(s);
-            if (members.size() < 5) continue;
+            if (members.size() < 3) continue;
             int best = members.get(0);
             for (int i = 1; i < members.size(); i++) {
                 if (fitness[members.get(i)] > fitness[best]) best = members.get(i);
             }
             next.add(population.get(best).copy());
-            isElite[best] = true;
         }
 
         // 4. 按物种适应度份额分配后代名额
@@ -138,7 +136,7 @@ public class NeatEvolver {
 
     private int tournament(ArrayList<Integer> members, float[] adjusted) {
         int best = members.get(rng.nextInt(members.size()));
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 4; i++) {
             int c = members.get(rng.nextInt(members.size()));
             if (adjusted[c] > adjusted[best]) best = c;
         }
@@ -146,8 +144,9 @@ public class NeatEvolver {
     }
 
     private void mutate(Genome g) {
-        if (rng.nextFloat() < 0.8f) g.mutateWeights(rng);
-        if (rng.nextFloat() < 0.05f) g.mutateAddNode(rng, counter);
-        if (rng.nextFloat() < 0.10f) g.mutateAddConnection(rng, counter);
+        float r = rng.nextFloat();
+        if (r < 0.7f) g.mutateWeights(rng);
+        else if (r < 0.78f) g.mutateAddNode(rng, counter);
+        else if (r < 0.90f) g.mutateAddConnection(rng, counter);
     }
 }

@@ -28,8 +28,8 @@ public class NeatEngine extends PlayerEngine {
         net.eval(inputs, outputs);
 
         float mx = outputs[0], my = outputs[1];
-        if (Math.abs(mx) < 0.2f) mx = 0f;
-        if (Math.abs(my) < 0.2f) my = 0f;
+        if (Math.abs(mx) < 0.05f) mx = 0f;
+        if (Math.abs(my) < 0.05f) my = 0f;
         operateMove(mx, my);
         operateShotButton(hysteresis(2, shotButtonPressed));
         operateLongShotButton(hysteresis(3, longShotButtonPressed));
