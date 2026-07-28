@@ -255,6 +255,26 @@ public class NeatEvolver {
         return "Balanced";
     }
 
+    /**
+     * 停滞复活（训练线程在世代间隙调用）：随机 40% 个体重度变异、10% 替换为全新基因组，
+     * 并重置停滞计数，帮助种群跳出局部最优。
+     */
+    public void injectDiversity() {
+        int heavy = population.size() * 2 / 5;
+        for (int i = 0; i < heavy; i++) {
+            int idx = rng.nextInt(population.size());
+            Genome g = population.get(idx).copy();
+            g.mutateWeights(rng);
+            g.mutateWeights(rng);
+            g.mutateWeights(rng);
+            g.mutateAddNode(rng, counter);
+            population.set(idx, g);
+        }
+        int fresh = population.size() / 10;
+        for (int i = 0; i < fresh; i++) population.set(rng.nextInt(population.size()), createMinimal());
+        stagnantGenerations = 0;
+    }
+
     /** 返回各物种冠军（供玩家选择对手） */
     public ArrayList<Genome> speciesChampions() {
         ArrayList<SpeciesInfo> snapshot = currentSpecies;

@@ -196,9 +196,10 @@ public class VisionSensor {
         out[g + 15] = Math.min(1f, self.teleportCooldown / (float) PlayerActor.TELEPORT_COOLDOWN);
 
         // 传送锚点相对向量（未标记为 0）——让 AI 学会评估回传落点
+        // /640 与场地尺度对齐：/320 会让半场外锚点饱和在 ±1，丢失远锚点分辨力
         if (self.teleportMarked) {
-            out[g + 16] = clamp1((self.teleportAnchorX - px) / 320f);
-            out[g + 17] = clamp1((self.teleportAnchorY - py) / 320f);
+            out[g + 16] = clamp1((self.teleportAnchorX - px) / 640f);
+            out[g + 17] = clamp1((self.teleportAnchorY - py) / 640f);
         } else {
             out[g + 16] = out[g + 17] = 0f;
         }

@@ -22,16 +22,21 @@ public class NeatTrainer {
     public static final int POPULATION = 150;
     private static final int MAX_MATCH_FRAMES = 180 + 7200;
     private static final int MAX_GHOSTS = 20;
-    private static final int SIMS_PER_MATCH = 3;
-    private static final int CHAMPION_POOL_SIZE = 5;
-    private static final int HISTORICAL_CHAMPION_SIZE = 10;
-    private static final int SAVE_INTERVAL = 5;
-    private static final int PATIENCE = 40;
+    private static final int CHAMPION_POOL_SIZE = 8;
+    private static final int HISTORICAL_CHAMPION_SIZE = 16;
+    private static final int HISTORICAL_INTERVAL = 25;   // 名人堂入库间隔（代）
+    private static final long SAVE_INTERVAL_MS = 30000L; // 存盘时间制：高速训练不再按代刷屏写盘
 
-    // 硬件感知的动态参数
+    // ---- 智能平台期收敛：以冠军 vs 规则AI(1.0) 胜率为可比进度指标 ----
+    private static final int CHAMP_EVAL_INTERVAL = 10;   // 每 10 代测一次冠军胜率
+    private static final int CHAMP_EVAL_SIMS = 6;
+    private static final int MIN_GENS_FOR_STOP = 200;    // 最小进化代数门槛
+    private static final int PLATEAU_LIMIT = 15;         // 15 次测量（≈150 代）无进展判平台期
+
+    // 硬件感知的动态参数（质量优先，老旧设备自动降档）
     private int dynamicPopulation;
     private int dynamicSimsPerMatch;
-    private int dynamicSaveInterval;
+    private int dynamicSelfPlayRounds;
 
     private final GeometryDuelGame app;
     private final Random rng = new Random();
@@ -62,8 +67,20 @@ public class NeatTrainer {
     private volatile boolean stopped;
     private volatile boolean resetting;
     private volatile boolean converged;
-    /** 自适应课程：对规则AI的当前难度（0.3~1.0），按每代胜率动态升降。 */
+    /** 自适应课程：对规则AI的当前难度（0.3~1.0），按 EMA 胜率动态升降。 */
     private float curriculumLevel = 0.3f;
+    private float ruleWinRateEma = 0.5f;
+    private int gensSinceCurriculumAdjust;
+
+    // ---- 智能收敛状态 ----
+    private volatile float champWinRateEma = -1f;  // 冠军胜率 EMA（-1=未测量）
+    private float bestWinRateEma;
+    private int plateauCount;
+    private boolean diversityInjected;
+
+    // ---- 训练速度指标与看门狗 ----
+    private volatile float genRate;                // gen/s EMA
+    private long lastSaveMs;
     /** 重置请求：由渲染线程发起、训练线程执行，避免在 UI 线程做重活。 */
     private volatile boolean resetRequested;
     private volatile int pendingRayCount;
@@ -72,9 +89,6 @@ public class NeatTrainer {
     private volatile float realMatchBonus;
     private float championElo = 1200f;
     private int playerWins, playerLosses;
-    private int patienceCounter;
-    private float historicalBestFitness;
-    private final ArrayList<Float> fitnessHistory = new ArrayList<Float>();
     private final CopyOnWriteArrayList<GhostData> ghosts = new CopyOnWriteArrayList<GhostData>();
     private final NoveltyArchive noveltyArchive = new NoveltyArchive(rng);
 
@@ -89,17 +103,24 @@ public class NeatTrainer {
         boolean hasNpu = app.hardware.npuInfo != null && !app.hardware.npuInfo.contains("None");
         int cores = Runtime.getRuntime().availableProcessors();
 
-        // 种群规模：有NPU时增加50%
-        dynamicPopulation = hasNpu ? POPULATION * 3 / 2 : POPULATION;
-
-        // 模拟次数：有NPU时增加50%
-        dynamicSimsPerMatch = hasNpu ? SIMS_PER_MATCH * 3 / 2 : SIMS_PER_MATCH;
-
-        // 保存间隔：有NPU时更频繁保存（每3代），否则每5代
-        dynamicSaveInterval = hasNpu ? 3 : SAVE_INTERVAL;
+        // 质量优先的分级：充足算力换更准的适应度与更多样的对手；老旧设备自动降档
+        if (hasNpu || cores >= 8) {
+            dynamicPopulation = hasNpu ? POPULATION * 3 / 2 : POPULATION;
+            dynamicSimsPerMatch = 8;
+            dynamicSelfPlayRounds = 3;
+        } else if (cores >= 5) {
+            dynamicPopulation = POPULATION;
+            dynamicSimsPerMatch = 6;
+            dynamicSelfPlayRounds = 3;
+        } else {
+            // 老旧设备（≤4 核）：保住可训练性，由代耗时看门狗进一步兜底
+            dynamicPopulation = POPULATION * 2 / 3;
+            dynamicSimsPerMatch = 4;
+            dynamicSelfPlayRounds = 2;
+        }
 
         Gdx.app.log("NeatTrainer", "dynamic params: pop=" + dynamicPopulation +
-                    ", sims=" + dynamicSimsPerMatch + ", saveInterval=" + dynamicSaveInterval);
+                    ", sims=" + dynamicSimsPerMatch + ", selfPlayRounds=" + dynamicSelfPlayRounds);
     }
 
     // ------------------------------------------------------------ 生命周期
@@ -164,13 +185,18 @@ public class NeatTrainer {
                 realMatchBonus = 0f;
                 championElo = 1200f;
                 playerWins = playerLosses = 0;
-                patienceCounter = 0;
-                historicalBestFitness = 0f;
                 converged = false;
-                fitnessHistory.clear();
                 evolver = newEvolver(newRayCount, null, null);
                 noveltyArchive.clear();
                 curriculumLevel = 0.3f;
+                ruleWinRateEma = 0.5f;
+                gensSinceCurriculumAdjust = 0;
+                champWinRateEma = -1f;
+                bestWinRateEma = 0f;
+                plateauCount = 0;
+                diversityInjected = false;
+                genRate = 0f;
+                lastSaveMs = 0L;
             } finally {
                 resetting = false;
             }
@@ -279,6 +305,10 @@ public class NeatTrainer {
     public float bestFitness() { return bestFitness; }
     public long simMatches() { return simMatches.get(); }
     public boolean isConverged() { return converged; }
+    /** 冠军 vs 规则AI(1.0) 胜率 EMA（<0 表示尚未测量）。 */
+    public float championWinRate() { return champWinRateEma; }
+    /** 训练速度（gen/s EMA）。 */
+    public float genRate() { return genRate; }
 
     // ------------------------------------------------------------ 训练循环
 
@@ -299,7 +329,13 @@ public class NeatTrainer {
             if (paused || converged) { sleep(200); continue; }
             try { runGeneration(); checkConvergence(); }
             catch (Throwable t) { Gdx.app.error("NeatTrainer", "gen failed", t); sleep(1000); }
-            if (generation % dynamicSaveInterval == 0) { saveNow(); if (generation % 20 == 0) verifySave(); }
+            // 时间制存盘：高速训练下按代存盘会每秒写数次 JSON（磨损闪存）
+            long now = System.currentTimeMillis();
+            if (now - lastSaveMs >= SAVE_INTERVAL_MS) {
+                lastSaveMs = now;
+                saveNow();
+                verifySave();
+            }
         }
     }
 
@@ -344,6 +380,7 @@ public class NeatTrainer {
 
     private void runGeneration() {
         if (resetting) return;
+        final long genStart = System.currentTimeMillis();
 
         final NeatEvolver ev;
         synchronized (evolverLock) { ev = evolver; }
@@ -411,22 +448,28 @@ public class NeatTrainer {
         // 暂停/停止/重置时中止本代，避免残缺适应度（跳过个体=0分）污染进化
         if (stopped || paused || resetting) return;
 
-        // 自适应课程：按本代对规则AI胜率动态升降难度
-        float winRate = ruleWins.get() / (float) total;
-        float oldLevel = curriculumLevel;
-        if (winRate > 0.65f) curriculumLevel += 0.02f;
-        else if (winRate > 0.5f) curriculumLevel += 0.008f;
-        else if (winRate < 0.3f) curriculumLevel -= 0.01f;
-        curriculumLevel = Math.max(0.3f, Math.min(1.0f, curriculumLevel));
-        if (curriculumLevel != oldLevel)
-            Gdx.app.log("NeatTrainer", "curriculum " + String.format("%.2f", oldLevel)
-                    + " -> " + String.format("%.2f", curriculumLevel)
-                    + " (winRate " + String.format("%.2f", winRate) + ")");
+        // 自适应课程：EMA 平滑胜率 + 最小间隔 5 代，抑制高速训练下的难度振荡
+        float instantWinRate = ruleWins.get() / (float) total;
+        ruleWinRateEma = ruleWinRateEma * 0.75f + instantWinRate * 0.25f;
+        gensSinceCurriculumAdjust++;
+        if (gensSinceCurriculumAdjust >= 5) {
+            float oldLevel = curriculumLevel;
+            if (ruleWinRateEma > 0.65f) curriculumLevel += 0.02f;
+            else if (ruleWinRateEma > 0.5f) curriculumLevel += 0.008f;
+            else if (ruleWinRateEma < 0.3f) curriculumLevel -= 0.01f;
+            curriculumLevel = Math.max(0.3f, Math.min(1.0f, curriculumLevel));
+            if (curriculumLevel != oldLevel) {
+                gensSinceCurriculumAdjust = 0;
+                Gdx.app.log("NeatTrainer", "curriculum " + String.format("%.2f", oldLevel)
+                        + " -> " + String.format("%.2f", curriculumLevel)
+                        + " (winRateEma " + String.format("%.2f", ruleWinRateEma) + ")");
+            }
+        }
 
-        // 2. 同代对战（2轮）—— 等主评估全完成再提交，避免竞态覆盖
-        int sameGenTasks = 2 * (total / 2);
+        // 2. 同代对战（动态轮数）—— 等主评估全完成再提交，避免竞态覆盖
+        int sameGenTasks = dynamicSelfPlayRounds * (total / 2);
         final CountDownLatch sameGenLatch = new CountDownLatch(sameGenTasks);
-        for (int round = 0; round < 2; round++) {
+        for (int round = 0; round < dynamicSelfPlayRounds; round++) {
             ArrayList<Integer> idx = new ArrayList<Integer>();
             for (int i = 0; i < total; i++) idx.add(i);
             Collections.shuffle(idx, rng);
@@ -436,7 +479,7 @@ public class NeatTrainer {
                 threadPool.execute(() -> {
                     float fA = evaluate(ga, gb, null, shaping, 1.0f);
                     float fB = evaluate(gb, ga, null, shaping, 1.0f);
-                    synchronized (fitness) { fitness[a] += fA * 0.2f; fitness[b] += fB * 0.2f; }
+                    synchronized (fitness) { fitness[a] += fA * 0.3f; fitness[b] += fB * 0.3f; }
                     simMatches.addAndGet(dynamicSimsPerMatch * 2);
                     sameGenLatch.countDown();
                 });
@@ -485,8 +528,8 @@ public class NeatTrainer {
                 if (sigs[i] != null) noveltyArchive.tryAdd(sigs[i]);
             }
 
-            // 每5代入库历史冠军
-            if (generation % 5 == 0) {
+            // 名人堂入库（高速训练下 5 代一入会让 16 个槽位只覆盖几秒进化史）
+            if (generation % HISTORICAL_INTERVAL == 0) {
                 historicalChampions.add(newChamp.copy());
                 while (historicalChampions.size() > HISTORICAL_CHAMPION_SIZE) historicalChampions.remove(0);
             }
@@ -494,6 +537,17 @@ public class NeatTrainer {
 
         // 每10代清策略统计
         if (generation % 10 == 0) { synchronized (strategyCounts) { strategyCounts.clear(); } }
+
+        // ---- 代速率 EMA + 老旧设备看门狗：代均 >6s 自动降模拟局数 ----
+        long genMs = System.currentTimeMillis() - genStart;
+        if (genMs > 0) {
+            float instant = 1000f / genMs;
+            genRate = genRate <= 0f ? instant : genRate * 0.8f + instant * 0.2f;
+        }
+        if (generation >= 10 && generation % 10 == 0 && genMs > 6000L && dynamicSimsPerMatch > 3) {
+            dynamicSimsPerMatch = Math.max(3, dynamicSimsPerMatch - 2);
+            Gdx.app.log("NeatTrainer", "slow gen (" + genMs + "ms), sims -> " + dynamicSimsPerMatch);
+        }
     }
 
     // ------------------------------------------------------------ 评估/模拟
@@ -576,26 +630,60 @@ public class NeatTrainer {
 
     // ------------------------------------------------------------ 早停 / 多样性
 
+    /**
+     * 智能平台期收敛：以冠军 vs 规则AI(1.0) 胜率 EMA 为跨代可比进度指标。
+     * （旧机制用原始适应度取历史最大，而 shaping 随代数衰减 → 必然误判停滞，
+     *   高速训练下几分钟就假收敛停摆。）
+     * 平台期先注入多样性复活一次，仍无进展才判定收敛。
+     */
     private void checkConvergence() {
-        fitnessHistory.add(bestFitness);
-        if (fitnessHistory.size() > 20) fitnessHistory.remove(0);
-
-        if (bestFitness > historicalBestFitness + 1.0f) {
-            historicalBestFitness = bestFitness;
-            patienceCounter = 0;
-        } else {
-            patienceCounter++;
-        }
-
-        if (patienceCounter >= PATIENCE) {
-            converged = true;
-            Gdx.app.log("NeatTrainer", "early stop gen " + generation + " best " + bestFitness);
-        }
-
         if (generation % 10 == 0) {
             float div = calculateDiversity();
-            Gdx.app.log("NeatTrainer", "gen " + generation + " diversity=" + String.format("%.3f", div) + " threshold=" + (evolver != null ? compatThreshold() : 3.0f));
-            if (div < 0.03f) { converged = true; Gdx.app.log("NeatTrainer", "population converged"); }
+            Gdx.app.log("NeatTrainer", "gen " + generation + " diversity=" + String.format("%.3f", div)
+                    + " threshold=" + (evolver != null ? compatThreshold() : 3.0f)
+                    + " winRate=" + (champWinRateEma < 0 ? "?" : String.format("%.2f", champWinRateEma)));
+            if (div < 0.03f && generation >= MIN_GENS_FOR_STOP) tryReviveOrStop("population converged");
+        }
+
+        if (champion == null || generation % CHAMP_EVAL_INTERVAL != 0) return;
+        float wr = measureChampionWinRate();
+        champWinRateEma = champWinRateEma < 0 ? wr : champWinRateEma * 0.7f + wr * 0.3f;
+        if (champWinRateEma > bestWinRateEma + 0.02f) {
+            bestWinRateEma = champWinRateEma;
+            plateauCount = 0;
+            diversityInjected = false;
+        } else if (++plateauCount >= PLATEAU_LIMIT && generation >= MIN_GENS_FOR_STOP) {
+            tryReviveOrStop("winrate plateau " + String.format("%.2f", champWinRateEma));
+        }
+    }
+
+    /** 冠军对规则AI(1.0) 胜率：训练进度的真实可比指标。 */
+    private float measureChampionWinRate() {
+        Genome c = champion;
+        if (c == null) return 0f;
+        int wins = 0;
+        for (int i = 0; i < CHAMP_EVAL_SIMS; i++) {
+            if (stopped || paused || resetting) break;
+            if (simulate(c, null, null, 1.0f, rng).aiWon) wins++;
+        }
+        simMatches.addAndGet(CHAMP_EVAL_SIMS);
+        return wins / (float) CHAMP_EVAL_SIMS;
+    }
+
+    /** 平台期处理：先注入多样性复活一次；复活后仍停滞才收敛停训。 */
+    private void tryReviveOrStop(String reason) {
+        if (!diversityInjected) {
+            diversityInjected = true;
+            plateauCount = 0;
+            synchronized (evolverLock) {
+                NeatEvolver ev = evolver;
+                if (ev != null) ev.injectDiversity();
+            }
+            Gdx.app.log("NeatTrainer", "plateau (" + reason + "), injecting diversity");
+        } else {
+            converged = true;
+            Gdx.app.log("NeatTrainer", "converged gen " + generation + " (" + reason + ")"
+                    + " winRate " + String.format("%.2f", champWinRateEma));
         }
     }
 

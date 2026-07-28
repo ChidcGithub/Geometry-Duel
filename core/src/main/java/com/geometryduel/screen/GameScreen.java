@@ -403,11 +403,12 @@ public class GameScreen extends ScreenAdapter {
                 layout.setText(app.font, hint);
                 app.font.draw(app.batch, hint, (w - layout.width) / 2f, h / 2f + unit * 40f);
             }
-            // 左下角：AI 训练进度
+            // 左下角：AI 训练进度（冠军胜率/代速率为可比指标，替代失真的原始适应度）
             if (app.trainer != null) {
+                float wr = app.trainer.championWinRate();
                 String prog = "AI Gen " + app.trainer.generation()
-                        + "  Best " + Math.round(app.trainer.bestFitness())
-                        + "  Sims " + app.trainer.simMatches()
+                        + "  WR " + (wr < 0 ? "--" : Math.round(wr * 100) + "%")
+                        + "  " + String.format("%.1f", app.trainer.genRate()) + " g/s"
                         + "  Ghosts " + app.trainer.ghostCount();
                 app.font.getData().setScale(1.2f * unit);
                 layout.setText(app.font, prog);
