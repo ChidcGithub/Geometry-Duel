@@ -52,7 +52,7 @@ public class SettingsScreen extends ScreenAdapter {
                 } else if (volumePlus.contains(touch.x, touch.y)) {
                     app.volume = Math.min(1f, app.volume + 0.1f);
                 } else if (opponentBtn.contains(touch.x, touch.y)) {
-                    app.opponentNeat = !app.opponentNeat;
+                    app.cycleOpponentStyle();
                 } else if (raysMinus.contains(touch.x, touch.y)) {
                     app.setVisionRays(app.visionRays - 4);
                 } else if (raysPlus.contains(touch.x, touch.y)) {
@@ -96,7 +96,7 @@ public class SettingsScreen extends ScreenAdapter {
         volumePlus.w = volumePlus.h = 56 * unit;
         volumeMinus.setCenter(w / 2f - 110 * unit, h * 0.37f);
         volumePlus.setCenter(w / 2f + 110 * unit, h * 0.37f);
-        opponentBtn.text = "Opponent: " + (app.opponentNeat ? "NEAT" : "Classic");
+        opponentBtn.text = "Opponent: " + app.opponentStyleLabel();
         opponentBtn.w = 300 * unit;
         opponentBtn.h = 56 * unit;
         opponentBtn.setCenter(w / 2f, h * 0.50f);

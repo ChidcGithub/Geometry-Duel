@@ -86,11 +86,11 @@ public class GameScreen extends ScreenAdapter {
                 final Genome champ = app.trainer.currentChampion();
                 if (champ != null) engineA = neatFactory(champ);
             } else {
-                // 玩家对战：按设置选择 NEAT 冠军或经典规则 AI；对局期间暂停后台训练
+                // 玩家对战：按 style 选择对手风格；对局期间暂停后台训练
                 app.trainer.setPaused(true);
-                if (app.opponentNeat) {
-                    final Genome champ = app.trainer.currentChampion();
-                    if (champ != null) engineB = neatFactory(champ);
+                if (app.opponentStyle >= 0) {
+                    final Genome styleGenome = app.trainer.styleChampion(app.opponentStyle);
+                    if (styleGenome != null) engineB = neatFactory(styleGenome);
                 }
             }
         }

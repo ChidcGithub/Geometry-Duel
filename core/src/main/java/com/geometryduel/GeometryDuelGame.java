@@ -32,7 +32,8 @@ public class GeometryDuelGame extends Game {
     /** NEAT AI：后台训练器（持有冠军/种群/持久化）。 */
     public NeatTrainer trainer;
     public int visionRays = 36;
-    public boolean opponentNeat = true;
+    /** 对手风格：-1=经典规则AI，0=总冠军，1..N=各物种冠军 */
+    public int opponentStyle = 0;
 
     public Sound sFire, lFire, longShotCharged, lFireHurt;
     public final HardwareInfo hardware = new HardwareInfo();
@@ -109,7 +110,7 @@ public class GeometryDuelGame extends Game {
         volume = p.getFloat("volume", 0.5f);
         tutorialDone = p.getBoolean("tutorialDone", false);
         visionRays = p.getInteger("visionRays", 36);
-        opponentNeat = p.getBoolean("opponentNeat", true);
+        opponentStyle = p.getInteger("opponentStyle", 0);
         applyTheme();
     }
 
@@ -119,13 +120,33 @@ public class GeometryDuelGame extends Game {
         p.putFloat("volume", volume);
         p.putBoolean("tutorialDone", tutorialDone);
         p.putInteger("visionRays", visionRays);
-        p.putBoolean("opponentNeat", opponentNeat);
+        p.putInteger("opponentStyle", opponentStyle);
         p.flush();
     }
 
     /** 清空 AI 训练成果并从零进化。 */
     public void resetAi() {
         if (trainer != null) trainer.reset(visionRays);
+    }
+
+    /** 对手风格标签（供 UI 显示） */
+    public String opponentStyleLabel() {
+        if (opponentStyle < 0) return "Classic";
+        if (opponentStyle == 0) return "Champion";
+        if (trainer != null) {
+            String[] labels = trainer.speciesStyleLabels();
+            int idx = opponentStyle - 1;
+            if (idx >= 0 && idx < labels.length) return labels[idx];
+        }
+        return "Champion";
+    }
+
+    /** 循环切换对手风格 */
+    public void cycleOpponentStyle() {
+        int maxStyle = 0; // 0 = Champion
+        if (trainer != null) maxStyle = trainer.speciesStyleLabels().length;
+        opponentStyle++;
+        if (opponentStyle > maxStyle) opponentStyle = -1; // wrap to Classic
     }
 
     /** 调整视野射线数（16~64）。输入维度变化 → 重置 AI 训练。 */

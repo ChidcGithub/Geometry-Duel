@@ -218,6 +218,29 @@ public class NeatTrainer {
     public Genome currentChampion() { return champion; }
     public NeatEvolver evolver() { return evolver; }
     public int generation() { return generation; }
+
+    /** 各物种冠军及其策略标签（供玩家选择对手风格） */
+    public String[] speciesStyleLabels() {
+        NeatEvolver ev = evolver;
+        if (ev == null || ev.currentSpecies.isEmpty()) return new String[0];
+        String[] labels = new String[ev.currentSpecies.size()];
+        for (int i = 0; i < labels.length; i++)
+            labels[i] = ev.currentSpecies.get(i).strategyLabel;
+        return labels;
+    }
+
+    /** 根据风格索引获取对应冠军基因组。-1=总冠军，0..N-1=物种冠军，null 表示未就绪 */
+    public Genome styleChampion(int styleIndex) {
+        NeatEvolver ev = evolver;
+        if (ev == null) return null;
+        if (styleIndex < 0) return champion;
+        if (styleIndex < ev.currentSpecies.size()) {
+            NeatEvolver.SpeciesInfo si = ev.currentSpecies.get(styleIndex);
+            if (si.bestIndex >= 0 && si.bestIndex < ev.population.size())
+                return ev.population.get(si.bestIndex);
+        }
+        return champion;
+    }
     public float bestFitness() { return bestFitness; }
     public long simMatches() { return simMatches.get(); }
     public boolean isConverged() { return converged; }
