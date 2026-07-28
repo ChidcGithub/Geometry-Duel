@@ -4,11 +4,7 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.audio.Sound;
-import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.geometryduel.neat.NeatEvolver;
 import com.geometryduel.neat.NeatTrainer;
 import com.geometryduel.render.Shapes;
@@ -23,7 +19,6 @@ public class GeometryDuelGame extends Game {
 
     public Shapes shapes;
     public SpriteBatch batch;
-    public BitmapFont font;
     /** 高分辨率五档字体（display/headline/title/body/label），随屏幕高度自动重建。 */
     public com.geometryduel.render.Fonts fonts;
     public static final String VERSION = "1.1.0";
@@ -62,7 +57,6 @@ public class GeometryDuelGame extends Game {
     public void create() {
         shapes = new Shapes();
         batch = new SpriteBatch();
-        font = loadFont();
         fonts = new com.geometryduel.render.Fonts(isAndroid);
         fonts.ensureBuilt();
 
@@ -76,42 +70,6 @@ public class GeometryDuelGame extends Game {
         trainer.start();
         trainer.setPaused(!trainingEnabled); // 尊重训练开关设置
         setScreen(new MenuScreen(this));
-    }
-
-    /**
-     * 字体加载：优先使用系统自带无衬线字体（安卓 Roboto，桌面 Arial/Helvetica/DejaVu），
-     * 经 FreeType 生成 16px 位图字体；全部失败时回退到 libGDX 内置 Arial 15。
-     */
-    private BitmapFont loadFont() {
-        String[] candidates = isAndroid ? new String[] {
-                "/system/fonts/Roboto-Regular.ttf",
-                "/system/fonts/DroidSans.ttf",
-        } : new String[] {
-                "C:/Windows/Fonts/arial.ttf",
-                "/System/Library/Fonts/Helvetica.ttc",
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        };
-        for (String path : candidates) {
-            FileHandle fh = Gdx.files.absolute(path);
-            if (!fh.exists()) continue;
-            try {
-                FreeTypeFontGenerator gen = new FreeTypeFontGenerator(fh);
-                FreeTypeFontGenerator.FreeTypeFontParameter p =
-                        new FreeTypeFontGenerator.FreeTypeFontParameter();
-                p.size = 16; // 与原 unifont-15 字号一致，保证各处 setScale 排版不变
-                p.minFilter = Texture.TextureFilter.Linear;
-                p.magFilter = Texture.TextureFilter.Linear;
-                BitmapFont f = gen.generateFont(p);
-                gen.dispose();
-                Gdx.app.log("Font", "loaded system font: " + path);
-                return f;
-            } catch (Throwable t) {
-                Gdx.app.error("Font", "failed to load font: " + path, t);
-            }
-        }
-        Gdx.app.error("Font", "no usable system font, fallback to built-in Arial 15");
-        return new BitmapFont();
     }
 
     @Override
@@ -240,7 +198,6 @@ public class GeometryDuelGame extends Game {
         if (getScreen() != null) getScreen().dispose();
         shapes.dispose();
         batch.dispose();
-        font.dispose();
         if (fonts != null) fonts.dispose();
         sFire.dispose();
         lFire.dispose();
