@@ -63,6 +63,7 @@ public class NeatTrainer {
     private float historicalBestFitness;
     private final ArrayList<Float> fitnessHistory = new ArrayList<Float>();
     private final CopyOnWriteArrayList<GhostData> ghosts = new CopyOnWriteArrayList<GhostData>();
+    private final NoveltyArchive noveltyArchive = new NoveltyArchive(rng);
 
     private Thread thread;
 
@@ -144,6 +145,7 @@ public class NeatTrainer {
                 converged = false;
                 fitnessHistory.clear();
                 evolver = newEvolver(newRayCount, null, null);
+                noveltyArchive.clear();
             } finally {
                 resetting = false;
             }
@@ -214,6 +216,7 @@ public class NeatTrainer {
     }
 
     public Genome currentChampion() { return champion; }
+    public NeatEvolver evolver() { return evolver; }
     public int generation() { return generation; }
     public float bestFitness() { return bestFitness; }
     public long simMatches() { return simMatches.get(); }
@@ -289,6 +292,7 @@ public class NeatTrainer {
         final int total = pop.size();
         final CountDownLatch latch = new CountDownLatch(total);
         final CopyOnWriteArrayList<Genome> popView = new CopyOnWriteArrayList<Genome>(pop);
+        final BehaviorSignature[] sigs = new BehaviorSignature[total];
 
         // 1. 主评估：每个体 vs 规则AI + 冠军 + 幽灵 + 历史冠军
         for (int i = 0; i < total; i++) {
@@ -298,8 +302,19 @@ public class NeatTrainer {
                 if (stopped || paused || resetting) { latch.countDown(); return; }
                 float f = 0f;
                 int n = 0;
+                MatchStats firstStats = null;
 
-                f += evaluate(g, null, null, shaping, level); n++; simMatches.addAndGet(dynamicSimsPerMatch);
+                // 第一局 vs 规则AI：捕获行为签名 (C)
+                if (n == 0) {
+                    firstStats = simulate(g, null, null, level, rngPerThread.get());
+                    f += firstStats.fitness(shaping); n++;
+                    sigs[index] = BehaviorSignature.from(firstStats, g);
+                }
+                simMatches.addAndGet(dynamicSimsPerMatch);
+                for (int s = 1; s < dynamicSimsPerMatch; s++) {
+                    f += simulate(g, null, null, level, rngPerThread.get()).fitness(shaping); n++;
+                    simMatches.addAndGet(dynamicSimsPerMatch);
+                }
                 if (champOpponent != null) { f += evaluate(g, champOpponent, null, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
                 if (ghost != null) { f += evaluate(g, null, ghost, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
                 if (histChampion != null) { f += evaluate(g, histChampion, null, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
@@ -345,6 +360,14 @@ public class NeatTrainer {
         try { sameGenLatch.await(); } catch (InterruptedException e) { return; }
         if (stopped || resetting) return;
 
+        // 3. 新颖性奖励 (C)：与存档+同代相比越独特越加分
+        for (int i = 0; i < total; i++) {
+            if (sigs[i] != null) {
+                float nov = noveltyArchive.novelty(sigs[i]);
+                fitness[i] += nov * 12f * shaping; // 最多+12（非常独特时）
+            }
+        }
+
         int best = 0;
         for (int i = 1; i < fitness.length; i++) if (fitness[i] > fitness[best]) best = i;
 
@@ -360,6 +383,11 @@ public class NeatTrainer {
             bestFitness = Math.max(bestFitness, fitness[best]);
             ev.nextGeneration(fitness);
             generation++;
+
+            // 更新新颖性存档 (C)
+            for (int i = 0; i < total; i++) {
+                if (sigs[i] != null) noveltyArchive.tryAdd(sigs[i]);
+            }
 
             // 每5代入库历史冠军
             if (generation % 5 == 0) {

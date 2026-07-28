@@ -4,11 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
 
-/**
- * NEAT 基因组：节点基因 + 连接基因（含创新号）。
- * 支持交叉、权重变异、加节点、加连接与兼容距离计算。
- * 字段 public 以便 libGDX Json 直接序列化。
- */
 public class Genome {
     public static final int INPUT = 0, HIDDEN = 1, OUTPUT = 2;
     public static final int TANH = 0, RELU = 1, SIGMOID = 2, LEAKY_RELU = 3;
@@ -16,13 +11,22 @@ public class Genome {
     public ArrayList<NodeGene> nodes = new ArrayList<NodeGene>();
     public ArrayList<ConnectionGene> conns = new ArrayList<ConnectionGene>();
 
+    // ---- 可进化的突变率参数 (B) ----
+    public float mutationPower = 0.3f;
+    public float weightMutProb = 0.9f;
+    public float addNodeProb = 0.25f;
+    public float addConnProb = 0.14f;
+    public float toggleProb = 0.06f;
+    public float resetProb = 0.05f;
+    public float activationProb = 0.05f;
+    public float removeProb = 0.04f;
+
     public static class NodeGene {
         public int id;
         public int type;
         public int activation = TANH;
 
-        public NodeGene() {
-        }
+        public NodeGene() {}
 
         public NodeGene(int id, int type) {
             this.id = id;
@@ -37,16 +41,14 @@ public class Genome {
         public boolean enabled = true;
         public int innovation;
 
-        public ConnectionGene() {
-        }
+        public ConnectionGene() {}
 
         public ConnectionGene(int in, int out, float weight, int innovation) {
-            this.in = in;
-            this.out = out;
-            this.weight = weight;
-            this.innovation = innovation;
+            this.in = in; this.out = out; this.weight = weight; this.innovation = innovation;
         }
     }
+
+    // ---- 节点/连接查找 ----
 
     public NodeGene node(int id) {
         for (int i = 0; i < nodes.size(); i++) {
@@ -66,6 +68,14 @@ public class Genome {
 
     public Genome copy() {
         Genome g = new Genome();
+        g.mutationPower = mutationPower;
+        g.weightMutProb = weightMutProb;
+        g.addNodeProb = addNodeProb;
+        g.addConnProb = addConnProb;
+        g.toggleProb = toggleProb;
+        g.resetProb = resetProb;
+        g.activationProb = activationProb;
+        g.removeProb = removeProb;
         for (int i = 0; i < nodes.size(); i++) {
             NodeGene n = nodes.get(i);
             NodeGene cp = new NodeGene(n.id, n.type);
@@ -83,32 +93,29 @@ public class Genome {
 
     // ------------------------------------------------------------ 变异
 
-    /** 权重变异：90% 扰动（高斯 * 0.3），10% 重赋随机值。 */
+    /** 权重变异：按基因组自身的 mutationPower 和 weightMutProb。 */
     public void mutateWeights(Random rng) {
         for (int i = 0; i < conns.size(); i++) {
             ConnectionGene c = conns.get(i);
-            if (rng.nextFloat() < 0.9f) c.weight += (float) rng.nextGaussian() * 0.3f;
-            else c.weight = rng.nextFloat() * 4f - 2f;
+            if (rng.nextFloat() < weightMutProb)
+                c.weight += (float) rng.nextGaussian() * mutationPower;
+            else
+                c.weight = rng.nextFloat() * 4f - 2f;
             if (c.weight > 8f) c.weight = 8f;
             else if (c.weight < -8f) c.weight = -8f;
         }
     }
 
-    /** 加连接：随机选一对可连节点（不成环、不重复），失败返回 false。 */
+    /** 加连接：允许循环（为循环神经网络开路）。 */
     public boolean mutateAddConnection(Random rng, InnovationCounter counter) {
         for (int tries = 0; tries < 20; tries++) {
             NodeGene a = nodes.get(rng.nextInt(nodes.size()));
             NodeGene b = nodes.get(rng.nextInt(nodes.size()));
             if (a.id == b.id) continue;
-            // 确定方向：输出侧不能是输入节点，输入侧不能是输出节点
             NodeGene in = a, out = b;
-            if (a.type == OUTPUT || b.type == INPUT) {
-                in = b;
-                out = a;
-            }
+            if (a.type == OUTPUT || b.type == INPUT) { in = b; out = a; }
             if (in.type == OUTPUT || out.type == INPUT || in.id == out.id) continue;
             if (hasConnection(in.id, out.id)) continue;
-            if (createsCycle(in.id, out.id)) continue;
             int innov = counter.innovation(in.id, out.id);
             conns.add(new ConnectionGene(in.id, out.id, rng.nextFloat() * 2f - 1f, innov));
             return true;
@@ -133,7 +140,7 @@ public class Genome {
         return true;
     }
 
-    /** 开关连接：翻转 enable 状态。 */
+    /** 开关连接 */
     public boolean mutateToggleConnection(Random rng) {
         if (conns.isEmpty()) return false;
         ConnectionGene c = conns.get(rng.nextInt(conns.size()));
@@ -141,38 +148,14 @@ public class Genome {
         return true;
     }
 
+    /** 重置所有权重 */
     public boolean mutateResetWeights(Random rng) {
         if (conns.isEmpty()) return false;
         for (int i = 0; i < conns.size(); i++) conns.get(i).weight = rng.nextFloat() * 4f - 2f;
         return true;
     }
 
-    private boolean createsCycle(int in, int out) {
-        HashMap<Integer, ArrayList<Integer>> adj = new HashMap<Integer, ArrayList<Integer>>();
-        for (int i = 0; i < conns.size(); i++) {
-            ConnectionGene c = conns.get(i);
-            if (!c.enabled) continue;
-            ArrayList<Integer> l = adj.get(c.in);
-            if (l == null) {
-                l = new ArrayList<Integer>();
-                adj.put(c.in, l);
-            }
-            l.add(c.out);
-        }
-        ArrayList<Integer> stack = new ArrayList<Integer>();
-        stack.add(out);
-        ArrayList<Integer> visited = new ArrayList<Integer>();
-        while (!stack.isEmpty()) {
-            int cur = stack.remove(stack.size() - 1);
-            if (cur == in) return true;
-            if (visited.contains(cur)) continue;
-            visited.add(cur);
-            ArrayList<Integer> l = adj.get(cur);
-            if (l != null) stack.addAll(l);
-        }
-        return false;
-    }
-
+    /** 激活函数变异 */
     public boolean mutateActivation(Random rng) {
         if (nodes.isEmpty()) return false;
         NodeGene n = nodes.get(rng.nextInt(nodes.size()));
@@ -185,15 +168,32 @@ public class Genome {
         return true;
     }
 
+    /** 删除连接 */
     public boolean mutateRemoveConnection(Random rng) {
         if (conns.isEmpty()) return false;
         conns.remove(rng.nextInt(conns.size()));
         return true;
     }
 
+    /** 变异突变率自身 (B)：每个率有 50% 概率被高斯扰动 ±20% */
+    public void mutateMutationRates(Random rng) {
+        if (rng.nextFloat() < 0.5f) mutationPower *= (float) Math.exp(rng.nextGaussian() * 0.2);
+        if (rng.nextFloat() < 0.5f) weightMutProb = clamp(weightMutProb + (float) rng.nextGaussian() * 0.05f, 0.5f, 0.99f);
+        if (rng.nextFloat() < 0.5f) addNodeProb   = clamp(addNodeProb   + (float) rng.nextGaussian() * 0.03f, 0.05f, 0.5f);
+        if (rng.nextFloat() < 0.5f) addConnProb   = clamp(addConnProb   + (float) rng.nextGaussian() * 0.03f, 0.02f, 0.3f);
+        if (rng.nextFloat() < 0.5f) toggleProb    = clamp(toggleProb    + (float) rng.nextGaussian() * 0.02f, 0.01f, 0.15f);
+        if (rng.nextFloat() < 0.5f) resetProb     = clamp(resetProb     + (float) rng.nextGaussian() * 0.02f, 0.005f, 0.1f);
+        if (rng.nextFloat() < 0.5f) activationProb= clamp(activationProb+ (float) rng.nextGaussian() * 0.02f, 0.005f, 0.1f);
+        if (rng.nextFloat() < 0.5f) removeProb    = clamp(removeProb    + (float) rng.nextGaussian() * 0.02f, 0.005f, 0.1f);
+        // 重新归一化 addNode + addConn 比例占主要
+        mutationPower = Math.max(0.05f, Math.min(1.5f, mutationPower));
+    }
+
+    private static float clamp(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
     // ------------------------------------------------------------ 交叉
 
-    /** 标准 NEAT 交叉：a 为适应度更高方，不匹配基因只从 a 继承。 */
+    /** 标准 NEAT 交叉 + 突变率交叉 */
     public static Genome crossover(Genome a, Genome b, Random rng) {
         HashMap<Integer, ConnectionGene> bMap = new HashMap<Integer, ConnectionGene>();
         for (int i = 0; i < b.conns.size(); i++) {
@@ -201,12 +201,23 @@ public class Genome {
             bMap.put(c.innovation, c);
         }
         Genome child = new Genome();
+        // 突变率交叉：随机选亲本
+        child.mutationPower = rng.nextBoolean() ? a.mutationPower : b.mutationPower;
+        child.weightMutProb = rng.nextBoolean() ? a.weightMutProb : b.weightMutProb;
+        child.addNodeProb   = rng.nextBoolean() ? a.addNodeProb : b.addNodeProb;
+        child.addConnProb   = rng.nextBoolean() ? a.addConnProb : b.addConnProb;
+        child.toggleProb    = rng.nextBoolean() ? a.toggleProb : b.toggleProb;
+        child.resetProb     = rng.nextBoolean() ? a.resetProb : b.resetProb;
+        child.activationProb= rng.nextBoolean() ? a.activationProb : b.activationProb;
+        child.removeProb    = rng.nextBoolean() ? a.removeProb : b.removeProb;
+        // 节点
         for (int i = 0; i < a.nodes.size(); i++) {
             NodeGene n = a.nodes.get(i);
             NodeGene nc = new NodeGene(n.id, n.type);
             nc.activation = n.activation;
             child.nodes.add(nc);
         }
+        // 连接
         for (int i = 0; i < a.conns.size(); i++) {
             ConnectionGene ca = a.conns.get(i);
             ConnectionGene cb = bMap.get(ca.innovation);
@@ -217,10 +228,8 @@ public class Genome {
                 if (!cb.enabled) disabledSomewhere = true;
             }
             ConnectionGene nc = new ConnectionGene(chosen.in, chosen.out, chosen.weight, chosen.innovation);
-            // 任一亲本中禁用 → 75% 概率保持禁用，否则继承 chosen 状态
             nc.enabled = disabledSomewhere ? rng.nextFloat() >= 0.75f && chosen.enabled : chosen.enabled;
             child.conns.add(nc);
-            // 匹配基因可能引用 b 独有的节点
             ensureNode(child, b, nc.in);
             ensureNode(child, b, nc.out);
         }
@@ -273,20 +282,60 @@ public class Genome {
     }
 
     private boolean hasInnovation(int innov) {
-        for (int i = 0; i < conns.size(); i++) {
+        for (int i = 0; i < conns.size(); i++)
             if (conns.get(i).innovation == innov) return true;
-        }
         return false;
     }
 
-    /** 创新号/节点号计数器（持久化随种群保存；每代内去重）。 */
+    // ------------------------------------------------------------ 行为签名 (C)
+
+    /** 提取当前基因组的粗略行为特征（结构层面） */
+    public float[] structureSignature() {
+        int totalNodes = nodes.size();
+        int hiddenNodes = 0, tanhCount = 0, reluCount = 0, sigmoidCount = 0, leakyCount = 0;
+        for (int i = 0; i < nodes.size(); i++) {
+            NodeGene n = nodes.get(i);
+            if (n.type == HIDDEN) {
+                hiddenNodes++;
+                if (n.activation == TANH) tanhCount++;
+                else if (n.activation == RELU) reluCount++;
+                else if (n.activation == SIGMOID) sigmoidCount++;
+                else if (n.activation == LEAKY_RELU) leakyCount++;
+            }
+        }
+        int totalConns = conns.size();
+        int enabledConns = 0;
+        float absWeightSum = 0f;
+        int positiveWeights = 0;
+        for (int i = 0; i < conns.size(); i++) {
+            ConnectionGene c = conns.get(i);
+            if (c.enabled) {
+                enabledConns++;
+                absWeightSum += Math.abs(c.weight);
+                if (c.weight > 0f) positiveWeights++;
+            }
+        }
+        float avgWeight = enabledConns > 0 ? absWeightSum / enabledConns : 0f;
+        float posRatio = enabledConns > 0 ? positiveWeights / (float) enabledConns : 0.5f;
+        return new float[] {
+            hiddenNodes / 50f,
+            totalConns / 500f,
+            enabledConns / (float) Math.max(1, totalConns),
+            tanhCount / (float) Math.max(1, hiddenNodes),
+            reluCount / (float) Math.max(1, hiddenNodes),
+            sigmoidCount / (float) Math.max(1, hiddenNodes),
+            avgWeight / 4f,
+            posRatio
+        };
+    }
+
+    /** 创新号/节点号计数器 */
     public static class InnovationCounter {
         public int nextInnovation;
         public int nextNode;
         private final HashMap<String, Integer> genMap = new HashMap<String, Integer>();
 
-        public InnovationCounter() {
-        }
+        public InnovationCounter() {}
 
         public InnovationCounter(int nextInnovation, int nextNode) {
             this.nextInnovation = nextInnovation;
@@ -302,13 +351,8 @@ public class Genome {
             return r;
         }
 
-        public int nextNodeId() {
-            return nextNode++;
-        }
+        public int nextNodeId() { return nextNode++; }
 
-        /** 每代结束后调用，清空代内去重表。 */
-        public void endGeneration() {
-            genMap.clear();
-        }
+        public void endGeneration() { genMap.clear(); }
     }
 }

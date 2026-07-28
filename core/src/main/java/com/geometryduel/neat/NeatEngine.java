@@ -26,6 +26,7 @@ public class NeatEngine extends PlayerEngine {
 
     public void reset() {
         skipCounter = 0;
+        net.reset();
     }
 
     @Override
