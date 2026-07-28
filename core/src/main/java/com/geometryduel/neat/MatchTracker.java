@@ -44,6 +44,10 @@ public class MatchTracker {
     public int chaseFrames;
     public int centerFrames;
     private final boolean[] visitedZones = new boolean[9];  // 3x3区域访问记录
+    // 1.5 混合回放：关键时刻追踪
+    public int keyMomentFrames;  // 关键时刻总帧数
+    private int lastKillFrame = -999;  // 上次击杀帧
+    private int lastTeleportFrame = -999;  // 上次传送帧
 
     public MatchTracker(ActorGroup group) {
         this.group = group;
@@ -82,6 +86,7 @@ public class MatchTracker {
             int newRecalls = p.teleportRecallCount - prevRecallCount;
             if (newRecalls > 0) {
                 lastRecallFrame = frame;
+                lastTeleportFrame = frame;  // 记录传送时刻 (1.5)
                 teleportsUsed += newRecalls;
 
                 // 传送后120帧内击杀=攻防一体
@@ -115,6 +120,7 @@ public class MatchTracker {
         }
         if (enemyWasAlive && !enemyAliveNow) {
             longShotsHit++; // 敌方消失=被击杀（长弓是唯一一击必杀方式）
+            lastKillFrame = frame;  // 记录击杀时刻 (1.5)
         }
         enemyWasAlive = enemyAliveNow;
 
@@ -172,6 +178,23 @@ public class MatchTracker {
             int zoneIndex = zoneY * 3 + zoneX;
             visitedZones[zoneIndex] = true;
         }
+
+        // ---- 关键时刻检测 (1.5) ----
+        boolean isKeyMoment = false;
+
+        // 击杀前后30帧
+        if (frame - lastKillFrame <= 30) isKeyMoment = true;
+
+        // 传送后30帧
+        if (frame - lastTeleportFrame <= 30) isKeyMoment = true;
+
+        // 长弓蓄力期间
+        if (p != null && p.state instanceof DrawLongbowState) isKeyMoment = true;
+
+        // 敌方受击期间（反击机会）
+        if (enemy != null && enemy.state.isDamaged()) isKeyMoment = true;
+
+        if (isKeyMoment) keyMomentFrames++;
     }
 
     private static boolean isEnemyAlive(PlayerActor enemy) {
@@ -194,6 +217,7 @@ public class MatchTracker {
         m.activeMoveFrames = activeMoveFrames;
         m.chaseFrames = chaseFrames;
         m.centerFrames = centerFrames;
+        m.keyMomentFrames = keyMomentFrames;
 
         // 计算位置多样性：访问的不同区域数量 / 9
         int visitedCount = 0;

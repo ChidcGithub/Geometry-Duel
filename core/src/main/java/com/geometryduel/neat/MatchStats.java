@@ -45,6 +45,9 @@ public class MatchStats {
     public int centerFrames;            // 在中心区域帧数（奖励占据有利位置）
     public float positionDiversity;     // 位置多样性（基于访问不同区域的数量）
 
+    // ---- 混合回放 (1.5) ----
+    public int keyMomentFrames;         // 关键时刻帧数（击杀/传送/长弓蓄力/反击）
+
     public float fitness(float shaping) {
         int playFrames = Math.max(1, frames - COUNTDOWN_FRAMES);
         float wallRatio = campFrames / (float) playFrames;
@@ -80,6 +83,17 @@ public class MatchStats {
         moveBonus += centerFrames / (float) playFrames * 8f;  // 占据中心奖励
         moveBonus += positionDiversity * 5f;  // 位置多样性奖励
         f += moveBonus;
+
+        // —— 混合回放关键时刻奖励 (1.5) ——
+        // 关键时刻表现给予额外权重，增强模型对重要局面的注意力
+        float keyMomentRatio = keyMomentFrames / (float) playFrames;
+        if (keyMomentRatio > 0f) {
+            float keyMomentBonus = 0f;
+            // 关键时刻的命中/击杀获得更高奖励
+            keyMomentBonus += hitsDealt * 5f * keyMomentRatio;  // 关键时刻命中额外奖励
+            keyMomentBonus += (aiWon ? 20f : 0f) * keyMomentRatio;  // 关键时刻获胜额外奖励
+            f += keyMomentBonus;
+        }
 
         // —— 行为项（cap 50） ——
         float behavior = 0f;
