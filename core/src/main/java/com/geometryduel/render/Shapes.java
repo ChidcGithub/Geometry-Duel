@@ -65,6 +65,12 @@ public class Shapes {
         applyTransform();
     }
 
+    /** 缩放（配合 push/translate 实现围绕任意中心的缩放，M3 按压动效用）。 */
+    public void scale(float sx, float sy) {
+        curr.scale(sx, sy, 1f);
+        applyTransform();
+    }
+
     public void stroke(float r, float g, float b, float a) {
         strokeColor.set(r, g, b, a);
         doStroke = true;
@@ -179,6 +185,40 @@ public class Shapes {
     /** 圆（stroke 轮廓；d 为直径，对应原作 circle(x,y,d)）。 */
     public void circle(float cx, float cy, float d) {
         arc(cx, cy, d / 2f, 0, 360);
+    }
+
+    /** 圆角矩形（M3 卡片/按钮；r 自动钳制到短边一半）。 */
+    public void roundRect(float x, float y, float w, float h, float r) {
+        r = Math.max(0f, Math.min(r, Math.min(w, h) / 2f));
+        if (doFill) {
+            sr.setColor(fillColor);
+            if (r <= 0.01f) {
+                sr.rect(x, y, w, h);
+            } else {
+                sr.rect(x + r, y, w - 2f * r, h);
+                sr.rect(x, y + r, r, h - 2f * r);
+                sr.rect(x + w - r, y + r, r, h - 2f * r);
+                sr.circle(x + r, y + r, r);
+                sr.circle(x + w - r, y + r, r);
+                sr.circle(x + r, y + h - r, r);
+                sr.circle(x + w - r, y + h - r, r);
+            }
+        }
+        if (doStroke) {
+            if (r <= 0.01f) {
+                rect(x, y, w, h);
+                return;
+            }
+            sr.setColor(strokeColor);
+            sr.rectLine(x + r, y, x + w - r, y, weight);
+            sr.rectLine(x + r, y + h, x + w - r, y + h, weight);
+            sr.rectLine(x, y + r, x, y + h - r, weight);
+            sr.rectLine(x + w, y + r, x + w, y + h - r, weight);
+            arc(x + r, y + r, r, 180f, 90f);
+            arc(x + w - r, y + r, r, 270f, 90f);
+            arc(x + w - r, y + h - r, r, 0f, 90f);
+            arc(x + r, y + h - r, r, 90f, 90f);
+        }
     }
 
     public void filledCircle(float cx, float cy, float d) {

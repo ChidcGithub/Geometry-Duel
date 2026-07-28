@@ -24,6 +24,9 @@ public class GeometryDuelGame extends Game {
     public Shapes shapes;
     public SpriteBatch batch;
     public BitmapFont font;
+    /** 高分辨率五档字体（display/headline/title/body/label），随屏幕高度自动重建。 */
+    public com.geometryduel.render.Fonts fonts;
+    public static final String VERSION = "1.1.0";
 
     public ThemeData theme;
     public ThemeData.Type themeType = ThemeData.Type.Light;
@@ -60,6 +63,8 @@ public class GeometryDuelGame extends Game {
         shapes = new Shapes();
         batch = new SpriteBatch();
         font = loadFont();
+        fonts = new com.geometryduel.render.Fonts(isAndroid);
+        fonts.ensureBuilt();
 
         sFire = Gdx.audio.newSound(Gdx.files.internal("audio/GUNMech_Mechanical_12.ogg"));
         lFire = Gdx.audio.newSound(Gdx.files.internal("audio/LASRGun_Plasma Rifle Fire_03.ogg"));
@@ -107,6 +112,13 @@ public class GeometryDuelGame extends Game {
         }
         Gdx.app.error("Font", "no usable system font, fallback to built-in Arial 15");
         return new BitmapFont();
+    }
+
+    @Override
+    public void render() {
+        // 屏幕高度变化（旋转/分屏/窗口缩放）时按新物理像素重建字体档
+        if (fonts != null) fonts.ensureBuilt();
+        super.render();
     }
 
     public void applyTheme() {
@@ -229,6 +241,7 @@ public class GeometryDuelGame extends Game {
         shapes.dispose();
         batch.dispose();
         font.dispose();
+        if (fonts != null) fonts.dispose();
         sFire.dispose();
         lFire.dispose();
         longShotCharged.dispose();
