@@ -20,7 +20,7 @@ public class SettingsScreen extends ScreenAdapter {
     private final GeometryDuelGame app;
     private final ScreenViewport uiVp;
     private final TextButton themeBtn, volumeMinus, volumePlus, backBtn;
-    private final TextButton opponentBtn, raysMinus, raysPlus, resetAiBtn;
+    private final TextButton opponentBtn, raysMinus, raysPlus, resetAiBtn, trainingBtn;
     private final GlyphLayout layout = new GlyphLayout();
     private final Vector3 touch = new Vector3();
 
@@ -34,6 +34,7 @@ public class SettingsScreen extends ScreenAdapter {
         raysMinus = new TextButton("-", 0, 0, 64, 64);
         raysPlus = new TextButton("+", 0, 0, 64, 64);
         resetAiBtn = new TextButton("Reset AI", 0, 0, 300, 64);
+        trainingBtn = new TextButton("", 0, 0, 300, 64);
         backBtn = new TextButton("Back", 0, 0, 200, 64);
     }
 
@@ -59,6 +60,8 @@ public class SettingsScreen extends ScreenAdapter {
                     app.setVisionRays(app.visionRays + 4);
                 } else if (resetAiBtn.contains(touch.x, touch.y)) {
                     app.resetAi();
+                } else if (trainingBtn.contains(touch.x, touch.y)) {
+                    app.toggleTraining();
                 } else if (backBtn.contains(touch.x, touch.y)) {
                     back();
                 }
@@ -107,9 +110,13 @@ public class SettingsScreen extends ScreenAdapter {
         resetAiBtn.w = 300 * unit;
         resetAiBtn.h = 56 * unit;
         resetAiBtn.setCenter(w / 2f, h * 0.76f);
+        trainingBtn.text = "Training: " + (app.trainingEnabled ? "On" : "Off");
+        trainingBtn.w = 300 * unit;
+        trainingBtn.h = 56 * unit;
+        trainingBtn.setCenter(w / 2f, h * 0.84f);
         backBtn.w = 200 * unit;
         backBtn.h = 56 * unit;
-        backBtn.setCenter(w / 2f, h * 0.90f);
+        backBtn.setCenter(w / 2f, h * 0.92f);
 
         uiVp.apply();
         app.shapes.begin(uiVp.getCamera());
@@ -120,6 +127,7 @@ public class SettingsScreen extends ScreenAdapter {
         raysMinus.draw(app.shapes, app.theme);
         raysPlus.draw(app.shapes, app.theme);
         resetAiBtn.draw(app.shapes, app.theme);
+        trainingBtn.draw(app.shapes, app.theme);
         backBtn.draw(app.shapes, app.theme);
         app.shapes.end();
 
@@ -150,6 +158,7 @@ public class SettingsScreen extends ScreenAdapter {
         app.font.draw(app.batch, raysNote, (w - layout.width) / 2f, h * 0.63f + 40f * unit);
         app.font.setColor(app.theme.text);
         resetAiBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
+        trainingBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         backBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         app.font.getData().setScale(1f);
         app.batch.end();

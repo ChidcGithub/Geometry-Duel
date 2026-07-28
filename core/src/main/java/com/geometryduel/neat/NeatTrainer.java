@@ -445,8 +445,10 @@ public class NeatTrainer {
 
         // ---- 池化引擎 A (被评估 AI) ----
         NeatEngine engA = pooledEngineA.get();
-        if (engA == null) { engA = new NeatEngine(candidate, rays); pooledEngineA.set(engA); }
-        else engA.setGenome(candidate);
+        if (engA == null || engA.rayCount() != rays) {
+            engA = new NeatEngine(candidate, rays);
+            pooledEngineA.set(engA);
+        } else engA.setGenome(candidate, rays);
         engA.reset();
         final NeatEngine engineA = engA;
 
@@ -458,8 +460,10 @@ public class NeatTrainer {
             engineB = rp;
         } else if (vsGenome != null) {
             NeatEngine engB = pooledEngineB.get();
-            if (engB == null) { engB = new NeatEngine(vsGenome, rays); pooledEngineB.set(engB); }
-            else engB.setGenome(vsGenome);
+            if (engB == null || engB.rayCount() != rays) {
+                engB = new NeatEngine(vsGenome, rays);
+                pooledEngineB.set(engB);
+            } else engB.setGenome(vsGenome, rays);
             engB.reset();
             engineB = engB;
         } else {

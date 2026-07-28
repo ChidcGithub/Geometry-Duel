@@ -34,6 +34,7 @@ public class GeometryDuelGame extends Game {
     public int visionRays = 36;
     /** 对手风格：-1=经典规则AI，0=总冠军，1..N=各物种冠军 */
     public int opponentStyle = 0;
+    public boolean trainingEnabled = true;
 
     public Sound sFire, lFire, longShotCharged, lFireHurt;
     public final HardwareInfo hardware = new HardwareInfo();
@@ -111,6 +112,7 @@ public class GeometryDuelGame extends Game {
         tutorialDone = p.getBoolean("tutorialDone", false);
         visionRays = p.getInteger("visionRays", 36);
         opponentStyle = p.getInteger("opponentStyle", 0);
+        trainingEnabled = p.getBoolean("trainingEnabled", true);
         applyTheme();
     }
 
@@ -121,10 +123,15 @@ public class GeometryDuelGame extends Game {
         p.putBoolean("tutorialDone", tutorialDone);
         p.putInteger("visionRays", visionRays);
         p.putInteger("opponentStyle", opponentStyle);
+        p.putBoolean("trainingEnabled", trainingEnabled);
         p.flush();
     }
 
-    /** 清空 AI 训练成果并从零进化。 */
+    /** 切换后台训练开关 */
+    public void toggleTraining() {
+        trainingEnabled = !trainingEnabled;
+        if (trainer != null) trainer.setPaused(!trainingEnabled);
+    }
     public void resetAi() {
         if (trainer != null) trainer.reset(visionRays);
     }
