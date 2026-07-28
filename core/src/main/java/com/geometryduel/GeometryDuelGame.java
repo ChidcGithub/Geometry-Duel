@@ -116,7 +116,7 @@ public class GeometryDuelGame extends Game {
         visionRays = p.getInteger("visionRays", 36);
         opponentStyle = p.getInteger("opponentStyle", 0);
         trainingEnabled = p.getBoolean("trainingEnabled", true);
-        aiSpeed = p.getInteger("aiSpeed", 1);
+        aiSpeed = Math.max(0, Math.min(3, p.getInteger("aiSpeed", 1)));
         applyTheme();
     }
 
@@ -138,7 +138,7 @@ public class GeometryDuelGame extends Game {
         if (trainer != null) trainer.setPaused(!trainingEnabled);
     }
     public void resetAi() {
-        if (trainer != null) trainer.reset(visionRays);
+        if (trainer != null) trainer.requestReset(visionRays);
     }
 
     /** 设置界面显示的物种信息 */
@@ -180,7 +180,7 @@ public class GeometryDuelGame extends Game {
         if (rays == visionRays) return;
         visionRays = rays;
         saveConfig();
-        if (trainer != null) trainer.reset(rays);
+        if (trainer != null) trainer.requestReset(rays);
     }
 
     @Override

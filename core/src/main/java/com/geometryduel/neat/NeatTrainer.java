@@ -61,6 +61,9 @@ public class NeatTrainer {
     private volatile boolean stopped;
     private volatile boolean resetting;
     private volatile boolean converged;
+    /** 重置请求：由渲染线程发起、训练线程执行，避免在 UI 线程做重活。 */
+    private volatile boolean resetRequested;
+    private volatile int pendingRayCount;
     private volatile float realMatchBonus;
     private float championElo = 1200f;
     private int playerWins, playerLosses;
@@ -128,7 +131,17 @@ public class NeatTrainer {
         saveNow();
     }
 
-    public void reset(int newRayCount) {
+    /**
+     * 请求重置训练（渲染线程安全，立即返回）。
+     * 实际重置由训练线程执行，连点自动合并为一次。
+     */
+    public void requestReset(int newRayCount) {
+        pendingRayCount = newRayCount;
+        resetRequested = true;
+    }
+
+    /** 实际重置：仅在训练线程调用。 */
+    private void doReset(int newRayCount) {
         synchronized (evolverLock) {
             resetting = true;
             try {
@@ -224,13 +237,14 @@ public class NeatTrainer {
     public NeatEvolver evolver() { return evolver; }
     public int generation() { return generation; }
 
-    /** 各物种冠军及其策略标签（供玩家选择对手风格） */
+    /** 各物种冠军及其策略标签（供玩家选择对手风格）。快照遍历，跨线程安全。 */
     public String[] speciesStyleLabels() {
         NeatEvolver ev = evolver;
-        if (ev == null || ev.currentSpecies.isEmpty()) return new String[0];
-        String[] labels = new String[ev.currentSpecies.size()];
+        if (ev == null) return new String[0];
+        ArrayList<NeatEvolver.SpeciesInfo> snapshot = ev.currentSpecies;
+        String[] labels = new String[snapshot.size()];
         for (int i = 0; i < labels.length; i++)
-            labels[i] = ev.currentSpecies.get(i).strategyLabel;
+            labels[i] = snapshot.get(i).strategyLabel;
         return labels;
     }
 
@@ -239,10 +253,10 @@ public class NeatTrainer {
         NeatEvolver ev = evolver;
         if (ev == null) return null;
         if (styleIndex < 0) return champion;
-        if (styleIndex < ev.currentSpecies.size()) {
-            NeatEvolver.SpeciesInfo si = ev.currentSpecies.get(styleIndex);
-            if (si.bestIndex >= 0 && si.bestIndex < ev.population.size())
-                return ev.population.get(si.bestIndex);
+        ArrayList<NeatEvolver.SpeciesInfo> snapshot = ev.currentSpecies;
+        if (styleIndex < snapshot.size()) {
+            Genome best = snapshot.get(styleIndex).best;
+            if (best != null) return best;
         }
         return champion;
     }
@@ -254,8 +268,14 @@ public class NeatTrainer {
 
     private void loop() {
         if (evolver == null) loadOrCreate();
-        while (!stopped && !converged) {
-            if (paused) { sleep(200); continue; }
+        while (!stopped) {
+            // 优先处理重置请求（收敛后也能复活训练）
+            if (resetRequested) {
+                resetRequested = false;
+                doReset(pendingRayCount);
+                continue;
+            }
+            if (paused || converged) { sleep(200); continue; }
             try { runGeneration(); checkConvergence(); }
             catch (Throwable t) { Gdx.app.error("NeatTrainer", "gen failed", t); sleep(1000); }
             if (generation % dynamicSaveInterval == 0) { saveNow(); if (generation % 20 == 0) verifySave(); }

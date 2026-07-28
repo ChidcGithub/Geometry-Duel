@@ -23,10 +23,12 @@ public class NeatEvolver {
         public final ArrayList<Integer> members = new ArrayList<Integer>();
         public Genome representative;
         public int bestIndex;
+        public Genome best; // 物种冠军基因组引用（不依赖 population 索引，跨线程读取安全）
         public float bestFitness;
         public String strategyLabel; // 给玩家的可读标签
     }
-    public ArrayList<SpeciesInfo> currentSpecies = new ArrayList<SpeciesInfo>();
+    /** 快照发布：nextGeneration 构建局部列表后原子替换，渲染线程可安全遍历。 */
+    public volatile ArrayList<SpeciesInfo> currentSpecies = new ArrayList<SpeciesInfo>();
 
     public NeatEvolver(int inputCount, int outputCount, int populationSize, Random rng) {
         this.inputCount = inputCount;
@@ -83,50 +85,51 @@ public class NeatEvolver {
         for (float f : fitness) if (f > currentBest) currentBest = f;
         adjustThreshold(currentBest);
 
-        // ---- 物种划分 (D) ----
-        currentSpecies.clear();
+        // ---- 物种划分 (D)：局部列表构建，完成后原子发布快照 ----
+        ArrayList<SpeciesInfo> species = new ArrayList<SpeciesInfo>();
         int[] speciesOf = new int[population.size()];
         for (int i = 0; i < population.size(); i++) {
             Genome g = population.get(i);
             int placed = -1;
-            for (int s = 0; s < currentSpecies.size(); s++) {
-                if (g.distance(currentSpecies.get(s).representative) < compatThreshold) { placed = s; break; }
+            for (int s = 0; s < species.size(); s++) {
+                if (g.distance(species.get(s).representative) < compatThreshold) { placed = s; break; }
             }
-            if (placed < 0 && currentSpecies.size() < MAX_SPECIES) {
-                placed = currentSpecies.size();
+            if (placed < 0 && species.size() < MAX_SPECIES) {
+                placed = species.size();
                 SpeciesInfo si = new SpeciesInfo();
                 si.representative = g;
-                currentSpecies.add(si);
+                species.add(si);
             }
             if (placed < 0) {
                 // 分配到最近的物种
                 float minDist = Float.MAX_VALUE;
-                for (int s = 0; s < currentSpecies.size(); s++) {
-                    float d = g.distance(currentSpecies.get(s).representative);
+                for (int s = 0; s < species.size(); s++) {
+                    float d = g.distance(species.get(s).representative);
                     if (d < minDist) { minDist = d; placed = s; }
                 }
             }
             if (placed >= 0) {
-                currentSpecies.get(placed).members.add(i);
+                species.get(placed).members.add(i);
                 speciesOf[i] = placed;
             }
         }
 
         // 计算每个物种的最优个体
-        for (int s = 0; s < currentSpecies.size(); s++) {
-            SpeciesInfo si = currentSpecies.get(s);
+        for (int s = 0; s < species.size(); s++) {
+            SpeciesInfo si = species.get(s);
             si.bestFitness = -Float.MAX_VALUE;
             for (int idx : si.members) {
                 if (fitness[idx] > si.bestFitness) { si.bestFitness = fitness[idx]; si.bestIndex = idx; }
             }
+            si.best = population.get(si.bestIndex);
             si.strategyLabel = labelSpecies(si, fitness);
         }
 
         // ---- 显式适应度分享 ----
         float[] adjusted = new float[population.size()];
         float totalAdjusted = 0f;
-        for (int s = 0; s < currentSpecies.size(); s++) {
-            SpeciesInfo si = currentSpecies.get(s);
+        for (int s = 0; s < species.size(); s++) {
+            SpeciesInfo si = species.get(s);
             float sz = si.members.size();
             for (int idx : si.members) {
                 float a = Math.max(0.01f, fitness[idx]) / sz;
@@ -139,8 +142,8 @@ public class NeatEvolver {
         ArrayList<Genome> next = new ArrayList<Genome>();
 
         // 精英：每个物种保留 ELITES_PER_SPECIES 个最佳个体
-        for (int s = 0; s < currentSpecies.size(); s++) {
-            SpeciesInfo si = currentSpecies.get(s);
+        for (int s = 0; s < species.size(); s++) {
+            SpeciesInfo si = species.get(s);
             if (si.members.size() < 2) continue;
             // 按适应度排序取前 ELITES_PER_SPECIES
             int[] sorted = new int[si.members.size()];
@@ -156,8 +159,8 @@ public class NeatEvolver {
         if (totalAdjusted <= 0f) totalAdjusted = 1f;
 
         // 按物种配额生成后代
-        for (int s = 0; s < currentSpecies.size() && remaining > 0; s++) {
-            SpeciesInfo si = currentSpecies.get(s);
+        for (int s = 0; s < species.size() && remaining > 0; s++) {
+            SpeciesInfo si = species.get(s);
             if (si.members.size() < 3) continue;
             float speciesSum = 0f;
             for (int idx : si.members) speciesSum += adjusted[idx];
@@ -186,6 +189,8 @@ public class NeatEvolver {
             next.add(child);
         }
 
+        // 先发布物种快照（best 引用旧种群基因组，不依赖索引），再替换种群
+        currentSpecies = species;
         population = next;
         counter.endGeneration();
     }
@@ -243,10 +248,10 @@ public class NeatEvolver {
 
     /** 返回各物种冠军（供玩家选择对手） */
     public ArrayList<Genome> speciesChampions() {
+        ArrayList<SpeciesInfo> snapshot = currentSpecies;
         ArrayList<Genome> champs = new ArrayList<Genome>();
-        for (SpeciesInfo si : currentSpecies) {
-            if (!si.members.isEmpty())
-                champs.add(population.get(si.bestIndex));
+        for (SpeciesInfo si : snapshot) {
+            if (si.best != null) champs.add(si.best);
         }
         return champs;
     }
