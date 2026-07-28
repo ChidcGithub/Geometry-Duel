@@ -20,7 +20,7 @@ public class SettingsScreen extends ScreenAdapter {
     private final GeometryDuelGame app;
     private final ScreenViewport uiVp;
     private final TextButton themeBtn, volumeMinus, volumePlus, backBtn;
-    private final TextButton opponentBtn, raysMinus, raysPlus, resetAiBtn, trainingBtn;
+    private final TextButton opponentBtn, raysMinus, raysPlus, resetAiBtn, trainingBtn, speedBtn;
     private final GlyphLayout layout = new GlyphLayout();
     private final Vector3 touch = new Vector3();
 
@@ -35,6 +35,7 @@ public class SettingsScreen extends ScreenAdapter {
         raysPlus = new TextButton("+", 0, 0, 64, 64);
         resetAiBtn = new TextButton("Reset AI", 0, 0, 300, 64);
         trainingBtn = new TextButton("", 0, 0, 300, 64);
+        speedBtn = new TextButton("", 0, 0, 300, 64);
         backBtn = new TextButton("Back", 0, 0, 200, 64);
     }
 
@@ -62,6 +63,8 @@ public class SettingsScreen extends ScreenAdapter {
                     app.resetAi();
                 } else if (trainingBtn.contains(touch.x, touch.y)) {
                     app.toggleTraining();
+                } else if (speedBtn.contains(touch.x, touch.y)) {
+                    app.aiSpeed = (app.aiSpeed + 1) % 4;
                 } else if (backBtn.contains(touch.x, touch.y)) {
                     back();
                 }
@@ -94,29 +97,34 @@ public class SettingsScreen extends ScreenAdapter {
         themeBtn.text = "Theme: " + (app.themeType == ThemeData.Type.Dark ? "Dark" : "Light");
         themeBtn.w = 300 * unit;
         themeBtn.h = 56 * unit;
-        themeBtn.setCenter(w / 2f, h * 0.24f);
+        themeBtn.setCenter(w / 2f, h * 0.21f);
         volumeMinus.w = volumeMinus.h = 56 * unit;
         volumePlus.w = volumePlus.h = 56 * unit;
-        volumeMinus.setCenter(w / 2f - 110 * unit, h * 0.37f);
-        volumePlus.setCenter(w / 2f + 110 * unit, h * 0.37f);
+        volumeMinus.setCenter(w / 2f - 110 * unit, h * 0.32f);
+        volumePlus.setCenter(w / 2f + 110 * unit, h * 0.32f);
         opponentBtn.text = "Opponent: " + app.opponentStyleLabel();
         opponentBtn.w = 300 * unit;
         opponentBtn.h = 56 * unit;
-        opponentBtn.setCenter(w / 2f, h * 0.50f);
+        opponentBtn.setCenter(w / 2f, h * 0.43f);
+        String[] speedLabels = {"30Hz", "20Hz", "15Hz", "12Hz"};
+        speedBtn.text = "AI Speed: " + speedLabels[app.aiSpeed];
+        speedBtn.w = 300 * unit;
+        speedBtn.h = 56 * unit;
+        speedBtn.setCenter(w / 2f, h * 0.53f);
         raysMinus.w = raysMinus.h = 56 * unit;
         raysPlus.w = raysPlus.h = 56 * unit;
         raysMinus.setCenter(w / 2f - 110 * unit, h * 0.63f);
         raysPlus.setCenter(w / 2f + 110 * unit, h * 0.63f);
         resetAiBtn.w = 300 * unit;
         resetAiBtn.h = 56 * unit;
-        resetAiBtn.setCenter(w / 2f, h * 0.76f);
+        resetAiBtn.setCenter(w / 2f, h * 0.73f);
         trainingBtn.text = "Training: " + (app.trainingEnabled ? "On" : "Off");
         trainingBtn.w = 300 * unit;
         trainingBtn.h = 56 * unit;
-        trainingBtn.setCenter(w / 2f, h * 0.84f);
+        trainingBtn.setCenter(w / 2f, h * 0.81f);
         backBtn.w = 200 * unit;
         backBtn.h = 56 * unit;
-        backBtn.setCenter(w / 2f, h * 0.92f);
+        backBtn.setCenter(w / 2f, h * 0.89f);
 
         uiVp.apply();
         app.shapes.begin(uiVp.getCamera());
@@ -128,6 +136,7 @@ public class SettingsScreen extends ScreenAdapter {
         raysPlus.draw(app.shapes, app.theme);
         resetAiBtn.draw(app.shapes, app.theme);
         trainingBtn.draw(app.shapes, app.theme);
+        speedBtn.draw(app.shapes, app.theme);
         backBtn.draw(app.shapes, app.theme);
         app.shapes.end();
 
@@ -145,7 +154,14 @@ public class SettingsScreen extends ScreenAdapter {
         app.font.draw(app.batch, "Volume: " + Math.round(app.volume * 100) + "%",
                 (w - layout.width) / 2f, h * 0.37f + layout.height / 2f);
         opponentBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
-        raysMinus.drawText(app.batch, app.font, app.theme, 2f * unit);
+        // 物种信息
+        app.font.getData().setScale(1f * unit);
+        String speciesInfo = app.speciesInfoText();
+        layout.setText(app.font, speciesInfo);
+        app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 0.55f);
+        app.font.draw(app.batch, speciesInfo, (w - layout.width) / 2f, h * 0.43f + 44f * unit);
+        app.font.setColor(app.theme.text);
+        speedBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         raysPlus.drawText(app.batch, app.font, app.theme, 2f * unit);
         app.font.getData().setScale(1.5f * unit);
         String raysLabel = "Vision Rays: " + app.visionRays;
@@ -159,6 +175,7 @@ public class SettingsScreen extends ScreenAdapter {
         app.font.setColor(app.theme.text);
         resetAiBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         trainingBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
+        speedBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         backBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         app.font.getData().setScale(1f);
         app.batch.end();

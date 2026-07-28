@@ -9,7 +9,7 @@ import com.geometryduel.game.engine.PlayerEngine;
  * longShot（>0.3/0.15 低门槛鼓励探索大招）、teleport（>0.5/0.3）。
  */
 public class NeatEngine extends PlayerEngine {
-    private static final int SKIP_FRAMES = 2;
+    private int skipFrames = 2;  // 可调：1=30Hz, 2=20Hz(default), 3=15Hz, 5=12Hz
 
     private NeatNetwork net;
     private VisionSensor sensor;
@@ -34,6 +34,9 @@ public class NeatEngine extends PlayerEngine {
 
     public int rayCount() { return engineRayCount; }
 
+    public void setSkipFrames(int n) { this.skipFrames = n; }
+    public int skipFrames() { return skipFrames; }
+
     /** 换基因组重建网络，射线数变时重新分配数组 */
     public void setGenome(Genome genome, int rayCount) {
         if (this.engineRayCount != rayCount) {
@@ -52,7 +55,7 @@ public class NeatEngine extends PlayerEngine {
             skipCounter--;
             return;
         }
-        skipCounter = SKIP_FRAMES;
+        skipCounter = skipFrames;
 
         sensor.sense(player, inputs);
         net.eval(inputs, outputs);

@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
+import com.geometryduel.neat.NeatEvolver;
 import com.geometryduel.neat.NeatTrainer;
 import com.geometryduel.render.Shapes;
 import com.geometryduel.screen.MenuScreen;
@@ -35,6 +36,8 @@ public class GeometryDuelGame extends Game {
     /** 对手风格：-1=经典规则AI，0=总冠军，1..N=各物种冠军 */
     public int opponentStyle = 0;
     public boolean trainingEnabled = true;
+    /** AI 决策速度：0=30Hz 1=20Hz 2=15Hz 3=12Hz (skipFrames = index+1) */
+    public int aiSpeed = 1;  // default 20Hz
 
     public Sound sFire, lFire, longShotCharged, lFireHurt;
     public final HardwareInfo hardware = new HardwareInfo();
@@ -113,6 +116,7 @@ public class GeometryDuelGame extends Game {
         visionRays = p.getInteger("visionRays", 36);
         opponentStyle = p.getInteger("opponentStyle", 0);
         trainingEnabled = p.getBoolean("trainingEnabled", true);
+        aiSpeed = p.getInteger("aiSpeed", 1);
         applyTheme();
     }
 
@@ -124,6 +128,7 @@ public class GeometryDuelGame extends Game {
         p.putInteger("visionRays", visionRays);
         p.putInteger("opponentStyle", opponentStyle);
         p.putBoolean("trainingEnabled", trainingEnabled);
+        p.putInteger("aiSpeed", aiSpeed);
         p.flush();
     }
 
@@ -136,7 +141,20 @@ public class GeometryDuelGame extends Game {
         if (trainer != null) trainer.reset(visionRays);
     }
 
-    /** 对手风格标签（供 UI 显示） */
+    /** 设置界面显示的物种信息 */
+    public String speciesInfoText() {
+        if (trainer == null) return "AI not started";
+        NeatEvolver ev = trainer.evolver();
+        if (ev == null || ev.currentSpecies.isEmpty())
+            return "Gen " + trainer.generation() + " | Species: 0 (training...)";
+        String[] labels = trainer.speciesStyleLabels();
+        StringBuilder sb = new StringBuilder("Gen " + trainer.generation()
+                + " | Species: " + labels.length);
+        for (int i = 0; i < Math.min(labels.length, 3); i++)
+            sb.append(" ").append(labels[i]);
+        if (labels.length > 3) sb.append(" ...");
+        return sb.toString();
+    }
     public String opponentStyleLabel() {
         if (opponentStyle < 0) return "Classic";
         if (opponentStyle == 0) return "Champion";

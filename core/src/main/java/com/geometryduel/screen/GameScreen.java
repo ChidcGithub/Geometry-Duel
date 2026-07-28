@@ -107,7 +107,9 @@ public class GameScreen extends ScreenAdapter {
         return new GameSystem.EngineFactory() {
             @Override
             public PlayerEngine create(GameSystem sys) {
-                return new NeatEngine(genome, app.visionRays);
+                NeatEngine e = new NeatEngine(genome, app.visionRays);
+                e.setSkipFrames(app.aiSpeed + 1);
+                return e;
             }
         };
     }
