@@ -101,6 +101,10 @@ public class GameSystem {
         playerB.state = move;
         otherGroup.addPlayer(playerB);
 
+        // 初始瞄准角指向敌方
+        playerA.aimAngle = (float) Math.atan2(playerB.pos.y - playerA.pos.y, playerB.pos.x - playerA.pos.x);
+        playerB.aimAngle = (float) Math.atan2(playerA.pos.y - playerB.pos.y, playerA.pos.x - playerB.pos.x);
+
         background = new GameBackground(theme().backgroundLine, 0.1f);
         currentState(new StartGameState(this));
     }
