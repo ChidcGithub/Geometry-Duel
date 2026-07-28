@@ -14,14 +14,15 @@ import com.geometryduel.ui.TextButton;
 
 /**
  * 设置（还原 Settings 的核心项）：
- * 主题 / 音量 / 对手风格 / AI 速度 / 视野射线 / 重置 AI / 训练开关 / 返回。
- * 布局：8 行控件等距排列（行距 64unit > 按钮高 52unit），文本与按钮互不重叠。
+ * 主题 / 动态取色 / 音量 / 对手风格 / AI 速度 / 视野射线 / 重置 AI / 训练开关 / 返回。
+ * 布局：9 行控件等距排列（行距 64unit > 按钮高 52unit），文本与按钮互不重叠。
  */
 public class SettingsScreen extends ScreenAdapter {
     private final GeometryDuelGame app;
     private final ScreenViewport uiVp;
     private final TextButton themeBtn, volumeMinus, volumePlus, backBtn;
     private final TextButton opponentBtn, raysMinus, raysPlus, resetAiBtn, trainingBtn, speedBtn;
+    private final TextButton dynamicBtn;
     private final GlyphLayout layout = new GlyphLayout();
     private final Vector3 touch = new Vector3();
 
@@ -37,10 +38,11 @@ public class SettingsScreen extends ScreenAdapter {
         resetAiBtn = new TextButton("Reset AI", 0, 0, 300, 64);
         trainingBtn = new TextButton("", 0, 0, 300, 64);
         speedBtn = new TextButton("", 0, 0, 300, 64);
+        dynamicBtn = new TextButton("", 0, 0, 300, 64);
         backBtn = new TextButton("Back", 0, 0, 200, 64);
         // Metro：容器色块按钮，返回键用主色强调
         TextButton[] containers = {themeBtn, volumeMinus, volumePlus, opponentBtn,
-                raysMinus, raysPlus, resetAiBtn, trainingBtn, speedBtn};
+                raysMinus, raysPlus, resetAiBtn, trainingBtn, speedBtn, dynamicBtn};
         for (TextButton b : containers) b.style = TextButton.STYLE_CONTAINER;
         backBtn.style = TextButton.STYLE_PRIMARY;
     }
@@ -55,6 +57,8 @@ public class SettingsScreen extends ScreenAdapter {
                 uiVp.unproject(touch);
                 if (themeBtn.contains(touch.x, touch.y)) {
                     app.toggleTheme();
+                } else if (dynamicBtn.contains(touch.x, touch.y)) {
+                    app.toggleDynamicColor();
                 } else if (volumeMinus.contains(touch.x, touch.y)) {
                     app.volume = Math.max(0f, app.volume - 0.1f);
                 } else if (volumePlus.contains(touch.x, touch.y)) {
@@ -109,7 +113,7 @@ public class SettingsScreen extends ScreenAdapter {
         float bh = 52f * unit;                         // 按钮高
         float sw = 44f * unit;                         // 小方按钮
         float step = 64f * unit;                       // 行距 = 按钮高 + 12 间隙
-        float y0 = h * 0.84f;                          // 首行中心
+        float y0 = h * 0.86f;                          // 首行中心（9 行整体上移防底部溢出）
         float off = Math.min(110f * unit, w * 0.5f - sw - 8f * unit); // +/- 偏移
 
         // ---- 布局（与触摸检测共用同一坐标系）----
@@ -143,8 +147,14 @@ public class SettingsScreen extends ScreenAdapter {
         trainingBtn.w = bw; trainingBtn.h = bh;
         trainingBtn.setCenter(w / 2f, rowY(y0, step, 6));
 
+        dynamicBtn.text = app.themeSeed != 0
+                ? "Dynamic Color: " + (app.dynamicColor ? "On" : "Off")
+                : "Dynamic Color: N/A";
+        dynamicBtn.w = bw; dynamicBtn.h = bh;
+        dynamicBtn.setCenter(w / 2f, rowY(y0, step, 7));
+
         backBtn.w = Math.min(200f * unit, w * 0.6f); backBtn.h = bh;
-        backBtn.setCenter(w / 2f, rowY(y0, step, 7));
+        backBtn.setCenter(w / 2f, rowY(y0, step, 8));
 
         // ---- 按钮边框 ----
         uiVp.apply();
@@ -158,6 +168,7 @@ public class SettingsScreen extends ScreenAdapter {
         resetAiBtn.draw(app.shapes, app.theme);
         trainingBtn.draw(app.shapes, app.theme);
         speedBtn.draw(app.shapes, app.theme);
+        dynamicBtn.draw(app.shapes, app.theme);
         backBtn.draw(app.shapes, app.theme);
         app.shapes.end();
 
@@ -185,6 +196,7 @@ public class SettingsScreen extends ScreenAdapter {
         speedBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         resetAiBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         trainingBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
+        dynamicBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
         backBtn.drawText(app.batch, app.font, app.theme, 1.5f * unit);
 
         // Volume 行：标签居中于两个方按钮之间

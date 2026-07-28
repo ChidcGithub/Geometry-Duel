@@ -37,27 +37,38 @@ public class ThemeData {
 
     public enum Type {Light, Dark}
 
-    /** 亮色主题（M3 Expressive Light）。 */
+    /** 亮色主题（M3 Expressive Light，默认紫种子色）。 */
     public static ThemeData light() {
+        return light(0);
+    }
+
+    /**
+     * 亮色主题（Material You 动态取色）：以种子色为基调，按 M3 色调角色近似派生。
+     * seed 为 ARGB；传 0 使用默认 M3 紫。
+     */
+    public static ThemeData light(int seed) {
+        if (seed == 0) seed = 0xFF6750A4;
+        float[] base = rgbToHsv(seed);
+        float h = base[0], sat = base[1];
         ThemeData t = new ThemeData();
-        // M3 色板
-        t.primary = hex(0x6750A4ffL);
+        // M3 色板（primary≈tone40，container≈tone90，onContainer≈tone10）
+        t.primary = hsv(h, clamp(sat, 0.35f, 0.85f), 0.62f);
         t.onPrimary = hex(0xFFFFFFffL);
-        t.primaryContainer = hex(0xEADDFFffL);
-        t.onPrimaryContainer = hex(0x21005DffL);
-        t.surfaceVariant = hex(0xE7E0ECffL);
-        t.onSurfaceVariant = hex(0x49454FffL);
+        t.primaryContainer = hsv(h, clamp(sat * 0.55f, 0.10f, 0.45f), 0.94f);
+        t.onPrimaryContainer = hsv(h, clamp(sat + 0.15f, 0.30f, 1f), 0.28f);
+        t.surfaceVariant = hsv(h, clamp(sat * 0.30f, 0.04f, 0.25f), 0.90f);
+        t.onSurfaceVariant = hsv(h, clamp(sat * 0.35f, 0.05f, 0.30f), 0.32f);
         t.error = hex(0xB3261EffL);
-        // 基础
-        t.background = hex(0xFEF7FFffL);          // surface
-        t.backgroundLine = hex(0xE7E0ECffL);      // surfaceVariant
-        t.text = hex(0x1D1B20ffL);                // onSurface
-        t.stroke = hex(0x1D1B20ffL);
+        // 基础（surface/onSurface 带轻微种子色相）
+        t.background = hsv(h, clamp(sat * 0.20f, 0.02f, 0.12f), 0.99f);
+        t.backgroundLine = t.surfaceVariant;
+        t.text = hsv(h, clamp(sat * 0.30f, 0.03f, 0.25f), 0.12f);
+        t.stroke = t.text;
         // 游戏元素
-        t.player_a = t.primary;                   // 我方：主紫色块（Metro）
+        t.player_a = t.primary;                   // 我方：主色块（Metro）
         t.player_b = hex(0x1D1B20ffL);            // 敌方：深色块
-        t.shortbowArrow = hex(0x49454FffL);
-        t.longbowArrow = hex(0x1D1B20ffL);
+        t.shortbowArrow = t.onSurfaceVariant;
+        t.longbowArrow = t.text;
         t.longbowLine = t.error;
         t.longbowEffect = t.error;
         t.longbowStroke = rgba(0x1D1B20L, 0.5f);
@@ -65,32 +76,40 @@ public class ThemeData {
         t.teleportEffect = hex(0x0061A4ffL);      // M3 expressive blue
         t.playerDamaged = t.error;
         t.ring = t.primary;
-        t.particleDefault = hex(0x1D1B20ffL);
-        t.squareParticles = hex(0x1D1B20ffL);
+        t.particleDefault = t.text;
+        t.squareParticles = t.text;
         return t;
     }
 
-    /** 暗色主题（M3 Expressive Dark）。 */
+    /** 暗色主题（M3 Expressive Dark，默认紫种子色）。 */
     public static ThemeData dark() {
+        return dark(0);
+    }
+
+    /** 暗色主题（Material You 动态取色）。seed 为 ARGB；传 0 使用默认 M3 紫。 */
+    public static ThemeData dark(int seed) {
+        if (seed == 0) seed = 0xFF6750A4;
+        float[] base = rgbToHsv(seed);
+        float h = base[0], sat = base[1];
         ThemeData t = new ThemeData();
-        // M3 色板
-        t.primary = hex(0xD0BCFFffL);
-        t.onPrimary = hex(0x381E72ffL);
-        t.primaryContainer = hex(0x4F378BffL);
-        t.onPrimaryContainer = hex(0xEADDFFffL);
-        t.surfaceVariant = hex(0x49454FffL);
-        t.onSurfaceVariant = hex(0xCAC4D0ffL);
+        // M3 色板（dark：primary≈tone80，container≈tone30，onContainer≈tone90）
+        t.primary = hsv(h, clamp(sat * 0.6f, 0.20f, 0.65f), 0.92f);
+        t.onPrimary = hsv(h, clamp(sat + 0.15f, 0.30f, 1f), 0.25f);
+        t.primaryContainer = hsv(h, clamp(sat * 0.75f, 0.25f, 0.80f), 0.38f);
+        t.onPrimaryContainer = hsv(h, clamp(sat * 0.35f, 0.08f, 0.40f), 0.95f);
+        t.surfaceVariant = hsv(h, clamp(sat * 0.25f, 0.04f, 0.25f), 0.30f);
+        t.onSurfaceVariant = hsv(h, clamp(sat * 0.25f, 0.05f, 0.30f), 0.82f);
         t.error = hex(0xF2B8B5ffL);
         // 基础
-        t.background = hex(0x141218ffL);          // surface
-        t.backgroundLine = hex(0x49454FffL);
-        t.text = hex(0xE6E0E9ffL);                // onSurface
-        t.stroke = hex(0xE6E0E9ffL);
+        t.background = hsv(h, clamp(sat * 0.25f, 0.03f, 0.20f), 0.09f);
+        t.backgroundLine = t.surfaceVariant;
+        t.text = hsv(h, clamp(sat * 0.20f, 0.03f, 0.20f), 0.93f);
+        t.stroke = t.text;
         // 游戏元素
-        t.player_a = t.primary;                   // 我方：浅紫色块
+        t.player_a = t.primary;                   // 我方：浅色调主色块
         t.player_b = hex(0xE6E0E9ffL);            // 敌方：浅色块
-        t.shortbowArrow = hex(0xCAC4D0ffL);
-        t.longbowArrow = hex(0xE6E0E9ffL);
+        t.shortbowArrow = t.onSurfaceVariant;
+        t.longbowArrow = t.text;
         t.longbowLine = t.error;
         t.longbowEffect = t.error;
         t.longbowStroke = rgba(0xE6E0E9L, 0.5f);
@@ -98,13 +117,51 @@ public class ThemeData {
         t.teleportEffect = hex(0x9FCAFFffL);      // M3 dark blue
         t.playerDamaged = t.error;
         t.ring = t.primary;
-        t.particleDefault = hex(0xE6E0E9ffL);
-        t.squareParticles = hex(0xE6E0E9ffL);
+        t.particleDefault = t.text;
+        t.squareParticles = t.text;
         return t;
     }
 
     private static Color hex(long rgba) {
         return new Color((int) (rgba & 0xffffffffL));
+    }
+
+    private static float clamp(float v, float lo, float hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    /** ARGB → HSV（h: 0-360，s/v: 0-1）。 */
+    private static float[] rgbToHsv(int argb) {
+        float r = ((argb >> 16) & 0xff) / 255f;
+        float g = ((argb >> 8) & 0xff) / 255f;
+        float b = (argb & 0xff) / 255f;
+        float max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b));
+        float d = max - min;
+        float h;
+        if (d < 0.0001f) h = 0f;
+        else if (max == r) h = (60f * ((g - b) / d) + 360f) % 360f;
+        else if (max == g) h = 60f * ((b - r) / d) + 120f;
+        else h = 60f * ((r - g) / d) + 240f;
+        float s = max < 0.0001f ? 0f : d / max;
+        return new float[] {h, s, max};
+    }
+
+    /** HSV → Color（h: 0-360，s/v 自动 clamp 到 0-1）。 */
+    private static Color hsv(float h, float s, float v) {
+        h = ((h % 360f) + 360f) % 360f;
+        s = clamp(s, 0f, 1f);
+        v = clamp(v, 0f, 1f);
+        float c = v * s;
+        float x = c * (1f - Math.abs((h / 60f) % 2f - 1f));
+        float m = v - c;
+        float r, g, b;
+        if (h < 60f) { r = c; g = x; b = 0f; }
+        else if (h < 120f) { r = x; g = c; b = 0f; }
+        else if (h < 180f) { r = 0f; g = c; b = x; }
+        else if (h < 240f) { r = 0f; g = x; b = c; }
+        else if (h < 300f) { r = x; g = 0f; b = c; }
+        else { r = c; g = 0f; b = x; }
+        return new Color(r + m, g + m, b + m, 1f);
     }
 
     private static Color rgba(long rgb, float a) {

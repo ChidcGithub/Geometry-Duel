@@ -27,6 +27,10 @@ public class GeometryDuelGame extends Game {
 
     public ThemeData theme;
     public ThemeData.Type themeType = ThemeData.Type.Light;
+    /** Material You 种子色（ARGB，0=无，由 Android 端从壁纸提取）。 */
+    public final int themeSeed;
+    /** 动态取色开关：开且有种子色时按壁纸色派生主题。 */
+    public boolean dynamicColor = true;
     public float volume = 0.5f;
     public boolean tutorialDone;
 
@@ -43,7 +47,12 @@ public class GeometryDuelGame extends Game {
     public final HardwareInfo hardware = new HardwareInfo();
 
     public GeometryDuelGame(boolean isAndroid) {
+        this(isAndroid, 0);
+    }
+
+    public GeometryDuelGame(boolean isAndroid, int themeSeed) {
         this.isAndroid = isAndroid;
+        this.themeSeed = themeSeed;
     }
 
     @Override
@@ -101,11 +110,19 @@ public class GeometryDuelGame extends Game {
     }
 
     public void applyTheme() {
-        theme = themeType == ThemeData.Type.Dark ? ThemeData.dark() : ThemeData.light();
+        int seed = dynamicColor ? themeSeed : 0;
+        theme = themeType == ThemeData.Type.Dark ? ThemeData.dark(seed) : ThemeData.light(seed);
     }
 
     public void toggleTheme() {
         themeType = themeType == ThemeData.Type.Dark ? ThemeData.Type.Light : ThemeData.Type.Dark;
+        applyTheme();
+    }
+
+    /** 动态取色开关（无种子色的平台不可切换）。 */
+    public void toggleDynamicColor() {
+        if (themeSeed == 0) return;
+        dynamicColor = !dynamicColor;
         applyTheme();
     }
 
@@ -118,6 +135,7 @@ public class GeometryDuelGame extends Game {
         opponentStyle = p.getInteger("opponentStyle", 0);
         trainingEnabled = p.getBoolean("trainingEnabled", true);
         aiSpeed = Math.max(0, Math.min(3, p.getInteger("aiSpeed", 1)));
+        dynamicColor = p.getBoolean("dynamicColor", true);
         applyTheme();
     }
 
@@ -130,6 +148,7 @@ public class GeometryDuelGame extends Game {
         p.putInteger("opponentStyle", opponentStyle);
         p.putBoolean("trainingEnabled", trainingEnabled);
         p.putInteger("aiSpeed", aiSpeed);
+        p.putBoolean("dynamicColor", dynamicColor);
         p.flush();
     }
 
