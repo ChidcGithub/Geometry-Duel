@@ -71,6 +71,7 @@ public class GameSystem {
         this.level = level;
         this.muted = muted;
         this.rng = rng;
+        particles.enabled = !muted; // 无头模拟禁用全部粒子特效
 
         myGroup.enemyGroup = otherGroup;
         otherGroup.enemyGroup = myGroup;

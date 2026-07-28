@@ -38,6 +38,11 @@ public class SettingsScreen extends ScreenAdapter {
         trainingBtn = new TextButton("", 0, 0, 300, 64);
         speedBtn = new TextButton("", 0, 0, 300, 64);
         backBtn = new TextButton("Back", 0, 0, 200, 64);
+        // Metro：容器色块按钮，返回键用主色强调
+        TextButton[] containers = {themeBtn, volumeMinus, volumePlus, opponentBtn,
+                raysMinus, raysPlus, resetAiBtn, trainingBtn, speedBtn};
+        for (TextButton b : containers) b.style = TextButton.STYLE_CONTAINER;
+        backBtn.style = TextButton.STYLE_PRIMARY;
     }
 
     @Override

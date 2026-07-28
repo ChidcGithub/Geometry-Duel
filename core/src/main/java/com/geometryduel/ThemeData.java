@@ -3,11 +3,11 @@ package com.geometryduel;
 import com.badlogic.gdx.graphics.Color;
 
 /**
- * 主题配色，数值逐项还原自：
- * - 亮色：pama1234.gdx.game.duel.util.theme.ThemeData#init()
- * - 暗色：assets/theme/darkTheme.yaml（0xRRGGBBAA）
+ * 主题配色：Metro UI 风格（大色块、方角、鲜明纯色）+ Material 3 Expressive 色板。
+ * 游戏内元素（玩家/箭/特效）映射到 M3 色调角色，UI 组件使用 primary/container 色块。
  */
 public class ThemeData {
+    // ---- 基础（沿用字段名，游戏渲染引用）----
     public Color background;
     public Color backgroundLine;
     public Color longbowArrow;
@@ -26,63 +26,88 @@ public class ThemeData {
     public Color teleportStroke;
     public Color text;
 
+    // ---- M3 色板（UI 组件引用）----
+    public Color primary;
+    public Color onPrimary;
+    public Color primaryContainer;
+    public Color onPrimaryContainer;
+    public Color surfaceVariant;
+    public Color onSurfaceVariant;
+    public Color error;
+
     public enum Type {Light, Dark}
 
-    /** 亮色主题（ThemeData.init 默认值，Duel.color 0..255 灰度/RGB）。 */
+    /** 亮色主题（M3 Expressive Light）。 */
     public static ThemeData light() {
         ThemeData t = new ThemeData();
-        t.shortbowArrow = gray(192);
-        t.longbowArrow = gray(64);
-        t.squareParticles = gray(0);
-        t.longbowLine = rgb(192, 64, 64);
-        t.longbowEffect = rgb(192, 64, 64);
-        t.teleportStroke = rgb(0, 89, 132);
-        t.teleportEffect = rgb(0, 132, 196);
-        t.longbowStroke = new Color(0f, 0f, 0f, 128 / 255f); // Duel.color(0, 128)：灰度0+透明度128
-        t.playerDamaged = rgb(192, 64, 64);
-        t.ring = gray(0);
-        t.particleDefault = gray(0);
-        t.backgroundLine = gray(224);
-        t.player_a = gray(255);
-        t.player_b = gray(0);
-        t.text = gray(0);
-        t.background = gray(255);
-        t.stroke = gray(0);
+        // M3 色板
+        t.primary = hex(0x6750A4ffL);
+        t.onPrimary = hex(0xFFFFFFffL);
+        t.primaryContainer = hex(0xEADDFFffL);
+        t.onPrimaryContainer = hex(0x21005DffL);
+        t.surfaceVariant = hex(0xE7E0ECffL);
+        t.onSurfaceVariant = hex(0x49454FffL);
+        t.error = hex(0xB3261EffL);
+        // 基础
+        t.background = hex(0xFEF7FFffL);          // surface
+        t.backgroundLine = hex(0xE7E0ECffL);      // surfaceVariant
+        t.text = hex(0x1D1B20ffL);                // onSurface
+        t.stroke = hex(0x1D1B20ffL);
+        // 游戏元素
+        t.player_a = t.primary;                   // 我方：主紫色块（Metro）
+        t.player_b = hex(0x1D1B20ffL);            // 敌方：深色块
+        t.shortbowArrow = hex(0x49454FffL);
+        t.longbowArrow = hex(0x1D1B20ffL);
+        t.longbowLine = t.error;
+        t.longbowEffect = t.error;
+        t.longbowStroke = rgba(0x1D1B20L, 0.5f);
+        t.teleportStroke = hex(0x004C83ffL);
+        t.teleportEffect = hex(0x0061A4ffL);      // M3 expressive blue
+        t.playerDamaged = t.error;
+        t.ring = t.primary;
+        t.particleDefault = hex(0x1D1B20ffL);
+        t.squareParticles = hex(0x1D1B20ffL);
         return t;
     }
 
-    /** 暗色主题（darkTheme.yaml，0xRRGGBBAA）。 */
+    /** 暗色主题（M3 Expressive Dark）。 */
     public static ThemeData dark() {
         ThemeData t = new ThemeData();
-        t.background = hex(0x1e1e1effL);
-        t.backgroundLine = hex(0xa0a0a0ffL);
-        t.longbowArrow = hex(0xc0c0c0ffL);
-        t.longbowEffect = hex(0xf24040ffL);
-        t.longbowLine = hex(0xf24040ffL);
-        t.longbowStroke = hex(0xfb6104d0L);
-        t.teleportStroke = hex(0x005984ffL);
-        t.teleportEffect = hex(0x0084C4ffL);
-        t.particleDefault = hex(0xd6d6d6ffL);
-        t.playerDamaged = hex(0xf24040ffL);
-        t.player_a = hex(0x1e1e1effL);
-        t.player_b = hex(0xd6d6d6ffL);
-        t.ring = hex(0xd6d6d6ffL);
-        t.shortbowArrow = hex(0xc0c0c0ffL);
-        t.squareParticles = hex(0xd6d6d6ffL);
-        t.stroke = hex(0xd6d6d6ffL);
-        t.text = hex(0xd6d6d6ffL);
+        // M3 色板
+        t.primary = hex(0xD0BCFFffL);
+        t.onPrimary = hex(0x381E72ffL);
+        t.primaryContainer = hex(0x4F378BffL);
+        t.onPrimaryContainer = hex(0xEADDFFffL);
+        t.surfaceVariant = hex(0x49454FffL);
+        t.onSurfaceVariant = hex(0xCAC4D0ffL);
+        t.error = hex(0xF2B8B5ffL);
+        // 基础
+        t.background = hex(0x141218ffL);          // surface
+        t.backgroundLine = hex(0x49454FffL);
+        t.text = hex(0xE6E0E9ffL);                // onSurface
+        t.stroke = hex(0xE6E0E9ffL);
+        // 游戏元素
+        t.player_a = t.primary;                   // 我方：浅紫色块
+        t.player_b = hex(0xE6E0E9ffL);            // 敌方：浅色块
+        t.shortbowArrow = hex(0xCAC4D0ffL);
+        t.longbowArrow = hex(0xE6E0E9ffL);
+        t.longbowLine = t.error;
+        t.longbowEffect = t.error;
+        t.longbowStroke = rgba(0xE6E0E9L, 0.5f);
+        t.teleportStroke = hex(0x50606FffL);
+        t.teleportEffect = hex(0x9FCAFFffL);      // M3 dark blue
+        t.playerDamaged = t.error;
+        t.ring = t.primary;
+        t.particleDefault = hex(0xE6E0E9ffL);
+        t.squareParticles = hex(0xE6E0E9ffL);
         return t;
-    }
-
-    private static Color gray(int v) {
-        return new Color(v / 255f, v / 255f, v / 255f, 1f);
-    }
-
-    private static Color rgb(int r, int g, int b) {
-        return new Color(r / 255f, g / 255f, b / 255f, 1f);
     }
 
     private static Color hex(long rgba) {
         return new Color((int) (rgba & 0xffffffffL));
+    }
+
+    private static Color rgba(long rgb, float a) {
+        return new Color(((rgb >> 16) & 0xff) / 255f, ((rgb >> 8) & 0xff) / 255f, (rgb & 0xff) / 255f, a);
     }
 }

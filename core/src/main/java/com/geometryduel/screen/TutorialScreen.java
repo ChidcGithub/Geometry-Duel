@@ -16,6 +16,10 @@ public class TutorialScreen extends GameScreen {
     private float level = 0.02f;
     private final TextButton skipBtn = new TextButton("Skip", 0, 0, 120, 48);
 
+    {
+        skipBtn.style = TextButton.STYLE_CONTAINER;
+    }
+
     public TutorialScreen(GeometryDuelGame app) {
         super(app);
         // super 构造时 level 尚未初始化，这里用正确的初始难度重建演示局
@@ -69,7 +73,7 @@ public class TutorialScreen extends GameScreen {
         app.font.draw(app.batch, "Level: " + String.format(java.util.Locale.US, "%.2f", level), x, y - 24f * unit);
         app.font.draw(app.batch, "Status: " + (app.tutorialDone ? "Done" : "Active"), x, y - 48f * unit);
         int remain = (int) Math.ceil((1.0f - level) / LEVEL_STEP);
-        app.font.draw(app.batch, "Goal: Win " + Math.max(0, remain) + " More", x, y - 72f * unit);
+        app.font.draw(app.batch, "Goal: " + Math.max(0, remain) + " Rounds Left", x, y - 72f * unit);
         skipBtn.drawText(app.batch, app.font, app.theme, 1.2f * unit);
     }
 }

@@ -10,6 +10,8 @@ import java.util.Iterator;
 public class ParticleSet {
     public final ArrayList<Particle> list = new ArrayList<Particle>();
     private final Builder builder = new Builder();
+    /** 无头训练模拟时置 false：所有粒子生成在 buildInto 处统一拦截。 */
+    public boolean enabled = true;
 
     public Builder builder() {
         return builder.initialize();
@@ -85,6 +87,7 @@ public class ParticleSet {
         public Builder lifespanSecond(float sec) { return lifespan((int) (sec * 60f)); }
 
         public Particle buildInto() {
+            if (!enabled) return null;
             Particle p = new Particle();
             p.particleTypeNumber = template.particleTypeNumber;
             p.pos.set(template.pos);

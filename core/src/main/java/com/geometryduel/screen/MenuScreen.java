@@ -39,6 +39,7 @@ public class MenuScreen extends ScreenAdapter {
                 new TextButton("Tutorial", 0, 0, 260, 64),
                 new TextButton("Settings", 0, 0, 260, 64),
         };
+        for (TextButton b : buttons) b.style = TextButton.STYLE_PRIMARY;
     }
 
     @Override
@@ -89,7 +90,7 @@ public class MenuScreen extends ScreenAdapter {
         float unit = h / 640f;
         app.font.getData().setScale(4f * unit);
         layout.setText(app.font, "Geometry Duel");
-        app.font.setColor(app.theme.text);
+        app.font.setColor(app.theme.primary);
         app.font.draw(app.batch, "Geometry Duel", (w - layout.width) / 2f, h * 0.071f + layout.height);
         for (TextButton b : buttons) b.drawText(app.batch, app.font, app.theme, 2f * unit);
 

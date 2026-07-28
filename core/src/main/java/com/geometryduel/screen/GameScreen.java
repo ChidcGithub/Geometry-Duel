@@ -65,7 +65,14 @@ public class GameScreen extends ScreenAdapter {
         uiVp = new ScreenViewport();
         backBtn = new TextButton("Back", 0, 0, 120, 48);
         pauseBtn = new TextButton("Pause", 0, 0, 120, 48);
+        backBtn.style = TextButton.STYLE_CONTAINER;
+        pauseBtn.style = TextButton.STYLE_CONTAINER;
         newGame(true, true);
+    }
+
+    /** 玩家对战进行中（非演示局）：供应用层判断息屏恢复后是否保持训练暂停。 */
+    public boolean isBattleActive() {
+        return system != null && !system.demoPlay;
     }
 
     /** 当前对局难度（教学模式覆盖）。 */
@@ -444,8 +451,9 @@ public class GameScreen extends ScreenAdapter {
         float pw = Math.min(w, h) * 0.9f;
         float px = (w - pw) / 2f, py = (h - pw * 460f / 576f) / 2f;
         float u = pw / 576f; // DemoInfo 以 576x460 绘制
-        app.font.setColor(app.theme.text);
+        app.font.setColor(app.theme.primary);
         text("Geometry Duel!", px + 180 * u, py + 50 * u, 3f * u);
+        app.font.setColor(app.theme.text);
         if (app.isAndroid) {
             text("   Z Button:", px + 60 * u, py + 120 * u, 2f * u);
             text("   X Button:", px + 60 * u, py + 160 * u, 2f * u);

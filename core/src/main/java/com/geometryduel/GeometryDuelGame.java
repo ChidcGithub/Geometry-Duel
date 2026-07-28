@@ -60,6 +60,7 @@ public class GeometryDuelGame extends Game {
         loadConfig();
         trainer = new NeatTrainer(this, visionRays);
         trainer.start();
+        trainer.setPaused(!trainingEnabled); // 尊重训练开关设置
         setScreen(new MenuScreen(this));
     }
 
@@ -187,6 +188,18 @@ public class GeometryDuelGame extends Game {
     public void pause() {
         super.pause();
         saveConfig();
+        if (trainer != null) trainer.setPaused(true); // 息屏暂停训练，避免耗电
+    }
+
+    @Override
+    public void resume() {
+        super.resume();
+        // 恢复训练：训练开关开且当前不在玩家对战中（对战的暂停由 GameScreen 管理）
+        if (trainer != null && trainingEnabled) {
+            boolean inBattle = getScreen() instanceof com.geometryduel.screen.GameScreen
+                    && ((com.geometryduel.screen.GameScreen) getScreen()).isBattleActive();
+            trainer.setPaused(inBattle);
+        }
     }
 
     @Override
