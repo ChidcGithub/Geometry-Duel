@@ -45,6 +45,9 @@ public class NeatEvolver {
                         rng.nextFloat() * 2f - 1f, innov++));
             }
         }
+        int bootstrap = 3 + rng.nextInt(3);
+        Genome.InnovationCounter bc = new Genome.InnovationCounter(innov, inputCount + outputCount);
+        for (int k = 0; k < bootstrap; k++) g.mutateAddNode(rng, bc);
         return g;
     }
 
@@ -153,12 +156,12 @@ public class NeatEvolver {
 
     private void mutate(Genome g) {
         float r = rng.nextFloat();
-        if (r < 0.48f) g.mutateWeights(rng);
-        else if (r < 0.64f) g.mutateAddNode(rng, counter);
-        else if (r < 0.79f) g.mutateAddConnection(rng, counter);
-        else if (r < 0.85f) g.mutateToggleConnection(rng);
-        else if (r < 0.90f) g.mutateResetWeights(rng);
-        else if (r < 0.95f) g.mutateActivation(rng);
+        if (r < 0.46f) g.mutateWeights(rng);
+        else if (r < 0.66f) g.mutateAddNode(rng, counter);
+        else if (r < 0.80f) g.mutateAddConnection(rng, counter);
+        else if (r < 0.86f) g.mutateToggleConnection(rng);
+        else if (r < 0.91f) g.mutateResetWeights(rng);
+        else if (r < 0.96f) g.mutateActivation(rng);
         else g.mutateRemoveConnection(rng);
     }
 }
