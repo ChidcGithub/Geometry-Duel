@@ -33,6 +33,22 @@ public class GhostData {
         return f < frames && (buttons[f] & 4) != 0;
     }
 
+    public float calculateQuality() {
+        if (frames < 300) return 0f;
+        int activeFrames = 0, shotFrames = 0, moveFrames = 0, teleportFrames = 0;
+        for (int i = 0; i < frames; i++) {
+            if (Math.abs(moveX[i]) > 10 || Math.abs(moveY[i]) > 10) moveFrames++;
+            if (shotAt(i) || longShotAt(i)) shotFrames++;
+            if (teleportAt(i)) teleportFrames++;
+            if (moveFrames > 0 || shotFrames > 0 || teleportFrames > 0) activeFrames++;
+        }
+        float active = activeFrames / (float) frames;
+        float shot = shotFrames / (float) frames;
+        float move = moveFrames / (float) frames;
+        float tele = teleportFrames / (float) frames;
+        return active * 0.4f + shot * 0.25f + move * 0.2f + tele * 0.15f;
+    }
+
     static byte quantize(float v) {
         if (v > 1f) v = 1f;
         if (v < -1f) v = -1f;

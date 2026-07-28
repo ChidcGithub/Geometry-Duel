@@ -3,10 +3,6 @@ package com.geometryduel.neat;
 import java.util.ArrayList;
 import java.util.Random;
 
-/**
- * NEAT 种群进化器：物种划分（兼容距离）、适应度共享、精英保留、
- * 锦标赛选择、交叉 + 变异产生下一代。
- */
 public class NeatEvolver {
     public static final float COMPAT_THRESHOLD = 3.0f;
 
@@ -14,6 +10,10 @@ public class NeatEvolver {
     public ArrayList<Genome> population = new ArrayList<Genome>();
     public Genome.InnovationCounter counter;
     private final Random rng;
+
+    float compatThreshold = COMPAT_THRESHOLD;
+    private int stagnantGenerations;
+    private float lastBestFitness;
 
     public NeatEvolver(int inputCount, int outputCount, int populationSize, Random rng) {
         this.inputCount = inputCount;
@@ -24,7 +24,6 @@ public class NeatEvolver {
         for (int i = 0; i < populationSize; i++) population.add(createMinimal());
     }
 
-    /** 从存档恢复。 */
     public NeatEvolver(int inputCount, int outputCount, int populationSize,
                        ArrayList<Genome> population, Genome.InnovationCounter counter, Random rng) {
         this.inputCount = inputCount;
@@ -35,7 +34,6 @@ public class NeatEvolver {
         this.rng = rng;
     }
 
-    /** 初始拓扑：无隐藏节点，全部 输入→输出 直连（创新号固定，便于交叉）。 */
     private Genome createMinimal() {
         Genome g = new Genome();
         for (int i = 0; i < inputCount; i++) g.nodes.add(new Genome.NodeGene(i, Genome.INPUT));
@@ -50,21 +48,35 @@ public class NeatEvolver {
         return g;
     }
 
-    // ------------------------------------------------------------ 世代更替
+    private void adjustThreshold(float bestFitness) {
+        if (bestFitness <= lastBestFitness + 0.5f) {
+            stagnantGenerations++;
+            if (stagnantGenerations > 15) {
+                compatThreshold = Math.max(1.5f, compatThreshold * 0.95f);
+            }
+        } else {
+            stagnantGenerations = 0;
+            if (compatThreshold < COMPAT_THRESHOLD) {
+                compatThreshold = Math.min(COMPAT_THRESHOLD, compatThreshold + 0.05f);
+            }
+        }
+        lastBestFitness = bestFitness;
+    }
 
-    /** fitness 与 population 一一对应；调用后种群被替换为下一代。 */
     public void nextGeneration(float[] fitness) {
-        // 1. 物种划分
+        // 动态阈值调整
+        float currentBest = 0f;
+        for (float f : fitness) if (f > currentBest) currentBest = f;
+        adjustThreshold(currentBest);
+
+        // 物种划分
         ArrayList<ArrayList<Integer>> species = new ArrayList<ArrayList<Integer>>();
         ArrayList<Genome> reps = new ArrayList<Genome>();
         for (int i = 0; i < population.size(); i++) {
             Genome g = population.get(i);
             int placed = -1;
             for (int s = 0; s < reps.size(); s++) {
-                if (g.distance(reps.get(s)) < COMPAT_THRESHOLD) {
-                    placed = s;
-                    break;
-                }
+                if (g.distance(reps.get(s)) < compatThreshold) { placed = s; break; }
             }
             if (placed < 0) {
                 placed = species.size();
@@ -74,7 +86,6 @@ public class NeatEvolver {
             species.get(placed).add(i);
         }
 
-        // 2. 适应度共享 + 各物种总适应度
         float[] adjusted = new float[population.size()];
         float totalAdjusted = 0f;
         float[] speciesTotal = new float[species.size()];
@@ -89,7 +100,6 @@ public class NeatEvolver {
             }
         }
 
-        // 3. 精英保留（物种规模 >= 3 保留头名）
         ArrayList<Genome> next = new ArrayList<Genome>();
         for (int s = 0; s < species.size(); s++) {
             ArrayList<Integer> members = species.get(s);
@@ -101,7 +111,6 @@ public class NeatEvolver {
             next.add(population.get(best).copy());
         }
 
-        // 4. 按物种适应度份额分配后代名额
         int remaining = populationSize - next.size();
         if (totalAdjusted <= 0f) totalAdjusted = 1f;
         for (int s = 0; s < species.size() && remaining > 0; s++) {
@@ -117,7 +126,6 @@ public class NeatEvolver {
                 next.add(child);
             }
         }
-        // 名额不足时从全局锦标赛补齐
         while (next.size() < populationSize) {
             ArrayList<Integer> all = new ArrayList<Integer>();
             for (int i = 0; i < population.size(); i++) all.add(i);
@@ -145,8 +153,10 @@ public class NeatEvolver {
 
     private void mutate(Genome g) {
         float r = rng.nextFloat();
-        if (r < 0.7f) g.mutateWeights(rng);
-        else if (r < 0.78f) g.mutateAddNode(rng, counter);
-        else if (r < 0.90f) g.mutateAddConnection(rng, counter);
+        if (r < 0.50f) g.mutateWeights(rng);
+        else if (r < 0.67f) g.mutateAddNode(rng, counter);
+        else if (r < 0.83f) g.mutateAddConnection(rng, counter);
+        else if (r < 0.89f) g.mutateToggleConnection(rng);
+        else if (r < 0.94f) g.mutateResetWeights(rng);
     }
 }

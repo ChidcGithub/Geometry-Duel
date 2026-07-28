@@ -129,6 +129,19 @@ public class Genome {
     }
 
     /** 检查新增 in→out 是否成环（从 out 沿使能连接能否到达 in）。 */
+    public boolean mutateToggleConnection(Random rng) {
+        if (conns.isEmpty()) return false;
+        ConnectionGene c = conns.get(rng.nextInt(conns.size()));
+        c.enabled = !c.enabled;
+        return true;
+    }
+
+    public boolean mutateResetWeights(Random rng) {
+        if (conns.isEmpty()) return false;
+        for (int i = 0; i < conns.size(); i++) conns.get(i).weight = rng.nextFloat() * 4f - 2f;
+        return true;
+    }
+
     private boolean createsCycle(int in, int out) {
         HashMap<Integer, ArrayList<Integer>> adj = new HashMap<Integer, ArrayList<Integer>>();
         for (int i = 0; i < conns.size(); i++) {
