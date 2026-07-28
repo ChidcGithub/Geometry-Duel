@@ -153,10 +153,12 @@ public class NeatEvolver {
 
     private void mutate(Genome g) {
         float r = rng.nextFloat();
-        if (r < 0.50f) g.mutateWeights(rng);
-        else if (r < 0.67f) g.mutateAddNode(rng, counter);
-        else if (r < 0.83f) g.mutateAddConnection(rng, counter);
-        else if (r < 0.89f) g.mutateToggleConnection(rng);
-        else if (r < 0.94f) g.mutateResetWeights(rng);
+        if (r < 0.48f) g.mutateWeights(rng);
+        else if (r < 0.64f) g.mutateAddNode(rng, counter);
+        else if (r < 0.79f) g.mutateAddConnection(rng, counter);
+        else if (r < 0.85f) g.mutateToggleConnection(rng);
+        else if (r < 0.90f) g.mutateResetWeights(rng);
+        else if (r < 0.95f) g.mutateActivation(rng);
+        else g.mutateRemoveConnection(rng);
     }
 }
