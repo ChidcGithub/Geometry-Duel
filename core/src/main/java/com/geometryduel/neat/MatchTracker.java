@@ -47,7 +47,8 @@ public class MatchTracker {
     // 1.5 混合回放：关键时刻追踪
     public int keyMomentFrames;  // 关键时刻总帧数
     private int lastKillFrame = -999;  // 上次击杀帧
-    private int lastTeleportFrame = -999;  // 上次传送帧
+    private int lastTeleportFrame = -999;
+    public int enemyLongbowAimFrames;  // 敌人蓄长弓瞄准自己
 
     public MatchTracker(ActorGroup group) {
         this.group = group;
@@ -191,6 +192,15 @@ public class MatchTracker {
         // 长弓蓄力期间
         if (p != null && p.state instanceof DrawLongbowState) isKeyMoment = true;
 
+        // 敌人蓄长弓瞄准自己 → 每帧扣分（角落=活靶子）
+        if (p != null && enemy != null && enemy.state instanceof DrawLongbowState) {
+            float want = (float) Math.atan2(p.pos.y - enemy.pos.y, p.pos.x - enemy.pos.x);
+            float err = enemy.aimAngle - want;
+            while (err > 3.1415927f) err -= 6.2831855f;
+            while (err < -3.1415927f) err += 6.2831855f;
+            if (Math.abs(err) < 0.12f) enemyLongbowAimFrames++;
+        }
+
         // 敌方受击期间（反击机会）
         if (enemy != null && enemy.state.isDamaged()) isKeyMoment = true;
 
@@ -218,6 +228,7 @@ public class MatchTracker {
         m.chaseFrames = chaseFrames;
         m.centerFrames = centerFrames;
         m.keyMomentFrames = keyMomentFrames;
+        m.enemyLongbowAimFrames = enemyLongbowAimFrames;
 
         // 计算位置多样性：访问的不同区域数量 / 9
         int visitedCount = 0;

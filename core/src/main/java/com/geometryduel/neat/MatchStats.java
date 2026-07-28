@@ -46,7 +46,8 @@ public class MatchStats {
     public float positionDiversity;     // 位置多样性（基于访问不同区域的数量）
 
     // ---- 混合回放 (1.5) ----
-    public int keyMomentFrames;         // 关键时刻帧数（击杀/传送/长弓蓄力/反击）
+    public int keyMomentFrames;
+    public int enemyLongbowAimFrames;   // 敌人蓄长弓瞄准自己的帧数
 
     public float fitness(float shaping) {
         int playFrames = Math.max(1, frames - COUNTDOWN_FRAMES);
@@ -57,8 +58,9 @@ public class MatchStats {
         float f = aiWon ? 100f : 0f;
         f += Math.min(frames, 7200) / 7200f * 40f * (1f - wallRatio * 0.8f);
         f += hitsDealt * 15f;
-        f -= hitsTaken * 5f;
-        f -= wallRatio * 60f;  // 从40提升至60
+        f -= hitsTaken * 10f;  // 受击翻倍（-5→-10，角落更容易被瞄准）
+        f -= wallRatio * 60f;
+        f -= enemyLongbowAimFrames / (float) playFrames * 30f;  // 被敌人大招瞄准=危险  // 从40提升至60
 
         // —— 精度奖励 (1.3) ——
         f += longShotsHit * 20f * shaping;
