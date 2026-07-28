@@ -6,26 +6,32 @@ import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.geometryduel.GeometryDuelGame;
 import com.geometryduel.game.gfx.GameBackground;
-import com.geometryduel.ui.TextButton;
+import com.geometryduel.ui.Anim;
+import com.geometryduel.ui.M3Button;
 
 /**
- * 开始菜单（还原 StartMenu）：
- * 动态网格背景 + 标题"几何决斗" + 开始游戏/教学模式/设置 按钮。
+ * 主菜单（M3 Expressive）：
+ * - Hero 大标题：弹簧缩放入场
+ * - AI 训练状态 chips（Gen / 胜率 / 代速）
+ * - 三个大圆角按钮 stagger 上浮入场，按压缩放回弹
+ * - 底部：硬件信息 + 版本号
  */
 public class MenuScreen extends ScreenAdapter {
     private final GeometryDuelGame app;
     private final FitViewport worldVp;
     private final ScreenViewport uiVp;
-    private GameBackground background;
-    private final TextButton[] buttons;
+    private final GameBackground background;
+    private final M3Button startBtn, tutorialBtn, settingsBtn;
     private final GlyphLayout layout = new GlyphLayout();
     private final Vector3 touch = new Vector3();
+    private float clock;
 
     public MenuScreen(GeometryDuelGame app) {
         this.app = app;
@@ -34,33 +40,37 @@ public class MenuScreen extends ScreenAdapter {
         worldVp = new FitViewport(640, 640, worldCam);
         uiVp = new ScreenViewport();
         background = new GameBackground(app.theme.backgroundLine, 0.1f);
-        buttons = new TextButton[]{
-                new TextButton("Start Game", 0, 0, 260, 64),
-                new TextButton("Tutorial", 0, 0, 260, 64),
-                new TextButton("Settings", 0, 0, 260, 64),
-        };
-        for (TextButton b : buttons) b.style = TextButton.STYLE_PRIMARY;
+        startBtn = new M3Button("Start Game", 0, 0);
+        startBtn.style = M3Button.FILLED;
+        tutorialBtn = new M3Button("Tutorial", 0, 0);
+        settingsBtn = new M3Button("Settings", 0, 0);
     }
 
     @Override
     public void show() {
+        clock = 0f;
         Gdx.input.setInputProcessor(new InputAdapter() {
             @Override
             public boolean touchDown(int x, int y, int pointer, int button) {
                 touch.set(x, y, 0);
                 uiVp.unproject(touch);
-                for (int i = 0; i < buttons.length; i++) {
-                    if (buttons[i].contains(touch.x, touch.y)) {
-                        onButton(i);
-                        return true;
-                    }
-                }
+                if (startBtn.contains(touch.x, touch.y)) { startBtn.setPressed(true); act(0); return true; }
+                if (tutorialBtn.contains(touch.x, touch.y)) { tutorialBtn.setPressed(true); act(1); return true; }
+                if (settingsBtn.contains(touch.x, touch.y)) { settingsBtn.setPressed(true); act(2); return true; }
                 return false;
+            }
+
+            @Override
+            public boolean touchUp(int x, int y, int pointer, int button) {
+                startBtn.setPressed(false);
+                tutorialBtn.setPressed(false);
+                settingsBtn.setPressed(false);
+                return true;
             }
         });
     }
 
-    private void onButton(int i) {
+    private void act(int i) {
         if (i == 0) app.setScreen(new GameScreen(app));
         else if (i == 1) app.setScreen(new TutorialScreen(app));
         else app.setScreen(new SettingsScreen(app));
@@ -68,59 +78,171 @@ public class MenuScreen extends ScreenAdapter {
 
     @Override
     public void render(float delta) {
+        clock += delta;
+        startBtn.update(delta);
+        tutorialBtn.update(delta);
+        settingsBtn.update(delta);
         background.update();
+
+        float w = uiVp.getWorldWidth(), h = uiVp.getWorldHeight();
+        float unit = h / 640f;
+        layoutButtons(w, h, unit);
 
         Gdx.gl.glClearColor(app.theme.background.r, app.theme.background.g, app.theme.background.b, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // 动态网格背景
         worldVp.apply();
         app.shapes.begin(worldVp.getCamera());
         background.display(app.shapes);
         app.shapes.end();
 
-        layoutButtons();
+        // ---- 形状层：按钮 + chips ----
         uiVp.apply();
         app.shapes.begin(uiVp.getCamera());
-        for (TextButton b : buttons) b.draw(app.shapes, app.theme);
+        startBtn.draw(app.shapes, app.theme);
+        tutorialBtn.draw(app.shapes, app.theme);
+        settingsBtn.draw(app.shapes, app.theme);
+        drawChips(app.shapes, w, h, unit);
         app.shapes.end();
 
+        // ---- 文本层 ----
         app.batch.begin();
         app.batch.setProjectionMatrix(uiVp.getCamera().combined);
-        float w = uiVp.getWorldWidth(), h = uiVp.getWorldHeight();
-        float unit = h / 640f;
-        app.font.getData().setScale(4f * unit);
-        layout.setText(app.font, "Geometry Duel");
-        app.font.setColor(app.theme.primary);
-        app.font.draw(app.batch, "Geometry Duel", (w - layout.width) / 2f, h * 0.071f + layout.height);
-        for (TextButton b : buttons) b.drawText(app.batch, app.font, app.theme, 2f * unit);
 
-        // ---- 左下角：GPU / NPU 信息 ----
-        app.hardware.detect();
-        app.font.getData().setScale(0.75f * unit);
-        float lx = 10f * unit;
-        app.font.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 0.45f);
-        app.font.draw(app.batch, "GPU: " + app.hardware.gpuRenderer, lx, 58f * unit);
-        app.font.draw(app.batch, "NPU: " + app.hardware.npuInfo, lx, 34f * unit);
-        app.font.setColor(app.theme.text);
+        drawHeroTitle(w, h, unit);
+        startBtn.drawText(app.batch, app.fonts, app.theme);
+        tutorialBtn.drawText(app.batch, app.fonts, app.theme);
+        settingsBtn.drawText(app.batch, app.fonts, app.theme);
+        drawChipsText(w, h, unit);
+        drawFooter(w, h, unit);
 
-        app.font.getData().setScale(1f);
         app.batch.end();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.Z)) {
-            onButton(0);
+            act(0);
         }
     }
 
-    private void layoutButtons() {
-        float w = uiVp.getWorldWidth(), h = uiVp.getWorldHeight();
-        float bw = Math.min(260f * (h / 640f), w * 0.6f);
-        float bh = 64f * (h / 640f);
-        float gap = bh * 0.5f;
-        float cy = h * 0.5f;
-        for (int i = 0; i < buttons.length; i++) {
-            buttons[i].w = bw;
-            buttons[i].h = bh;
-            buttons[i].setCenter(w / 2f, cy + (bh + gap) * i);
+    /** Hero 标题：弹簧缩放 + 淡入。 */
+    private void drawHeroTitle(float w, float h, float unit) {
+        float t = Anim.clamp01(clock / 0.55f);
+        float scale = Anim.lerp(0.86f, 1f, Anim.spring(t));
+        float alpha = Anim.decelerate(Anim.clamp01(clock / 0.35f));
+        BitmapFont f = app.fonts.display();
+        f.getData().setScale(scale);
+        String s = "GEOMETRY DUEL";
+        layout.setText(f, s);
+        // 窄屏收缩防溢出
+        float fit = Math.min(1f, w * 0.92f / layout.width);
+        if (fit < 1f) {
+            f.getData().setScale(scale * fit);
+            layout.setText(f, s);
+        }
+        f.setColor(app.theme.primary.r, app.theme.primary.g, app.theme.primary.b, alpha);
+        f.draw(app.batch, s, (w - layout.width) / 2f, h * 0.185f + layout.height / 2f);
+        f.getData().setScale(1f);
+
+        // 副标题
+        BitmapFont lf = app.fonts.label();
+        String sub = "N E A T   A I   E D I T I O N";
+        layout.setText(lf, sub);
+        lf.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 0.5f * alpha);
+        lf.draw(app.batch, sub, (w - layout.width) / 2f, h * 0.245f + layout.height / 2f);
+    }
+
+    // ---- AI 状态 chips ----
+    private final String[] chipText = new String[3];
+
+    private void buildChips() {
+        if (app.trainer != null) {
+            float wr = app.trainer.championWinRate();
+            chipText[0] = "GEN " + app.trainer.generation();
+            chipText[1] = "WR " + (wr < 0 ? "--" : Math.round(wr * 100) + "%");
+            chipText[2] = String.format("%.1f G/S", app.trainer.genRate());
+        } else {
+            chipText[0] = "AI";
+            chipText[1] = "WARMING";
+            chipText[2] = "UP";
+        }
+    }
+
+    private float chipAlpha() {
+        return Anim.decelerate(Anim.stagger(clock, 2, 0.09f, 0.45f));
+    }
+
+    private void drawChips(com.geometryduel.render.Shapes s, float w, float h, float unit) {
+        buildChips();
+        float a = chipAlpha();
+        if (a <= 0f) return;
+        BitmapFont f = app.fonts.label();
+        float pad = 14f * unit, gap = 10f * unit;
+        float ch = 30f * unit;
+        float total = -gap;
+        float[] ws = new float[3];
+        for (int i = 0; i < 3; i++) {
+            layout.setText(f, chipText[i]);
+            ws[i] = layout.width + pad * 2f;
+            total += ws[i] + gap;
+        }
+        float cx = (w - total) / 2f;
+        float cy = h * 0.30f;
+        s.doFill();
+        s.noStroke();
+        for (int i = 0; i < 3; i++) {
+            s.fill(app.theme.primaryContainer.r, app.theme.primaryContainer.g, app.theme.primaryContainer.b, a);
+            s.roundRect(cx, cy - ch / 2f, ws[i], ch, ch / 2f);
+            cx += ws[i] + gap;
+        }
+    }
+
+    private void drawChipsText(float w, float h, float unit) {
+        float a = chipAlpha();
+        if (a <= 0f) return;
+        BitmapFont f = app.fonts.label();
+        f.setColor(app.theme.onPrimaryContainer.r, app.theme.onPrimaryContainer.g, app.theme.onPrimaryContainer.b, a);
+        float pad = 14f * unit, gap = 10f * unit;
+        float ch = 30f * unit;
+        float total = -gap;
+        float[] ws = new float[3];
+        for (int i = 0; i < 3; i++) {
+            layout.setText(f, chipText[i]);
+            ws[i] = layout.width + pad * 2f;
+            total += ws[i] + gap;
+        }
+        float cx = (w - total) / 2f;
+        float cy = h * 0.30f;
+        for (int i = 0; i < 3; i++) {
+            layout.setText(f, chipText[i]);
+            f.draw(app.batch, chipText[i], cx + pad, cy + layout.height / 2f);
+            cx += ws[i] + gap;
+        }
+    }
+
+    private void drawFooter(float w, float h, float unit) {
+        app.hardware.detect();
+        BitmapFont f = app.fonts.label();
+        f.getData().setScale(0.82f);
+        f.setColor(app.theme.text.r, app.theme.text.g, app.theme.text.b, 0.45f);
+        f.draw(app.batch, "GPU: " + app.hardware.gpuRenderer, 12f * unit, h - 40f * unit);
+        f.draw(app.batch, "NPU: " + app.hardware.npuInfo, 12f * unit, h - 20f * unit);
+        String ver = "v" + GeometryDuelGame.VERSION;
+        layout.setText(f, ver);
+        f.draw(app.batch, ver, w - layout.width - 12f * unit, h - 20f * unit);
+        f.getData().setScale(1f);
+    }
+
+    private void layoutButtons(float w, float h, float unit) {
+        float bw = Math.min(320f * unit, w * 0.78f);
+        float bh = 58f * unit;
+        float gap = 18f * unit;
+        float cy = h * 0.46f;
+        M3Button[] bs = {startBtn, tutorialBtn, settingsBtn};
+        for (int i = 0; i < bs.length; i++) {
+            bs[i].w = bw;
+            bs[i].h = bh;
+            bs[i].setCenter(w / 2f, cy + (bh + gap) * i);
+            bs[i].entrance = Anim.stagger(clock - 0.1f, i, 0.09f, 0.45f);
         }
     }
 
