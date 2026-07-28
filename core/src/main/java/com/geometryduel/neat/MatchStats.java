@@ -12,7 +12,7 @@ package com.geometryduel.neat;
 public class MatchStats {
     public static final int COUNTDOWN_FRAMES = 180;
     public static final int QUICK_WIN_FRAMES = 3600;
-    public static final float BEHAVIOR_CAP = 50f;
+    public static final float BEHAVIOR_CAP = 30f;
 
     // ---- 基础 ----
     public boolean aiWon;

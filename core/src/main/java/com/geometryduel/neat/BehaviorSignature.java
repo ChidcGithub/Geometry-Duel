@@ -36,6 +36,24 @@ public class BehaviorSignature {
         return (float) Math.sqrt(sum);
     }
 
+    /**
+     * 行为策略档案：关键行为维度离散化为 5 位三档编码（共 243 种），
+     * 供训练器统计稀有度。基于真实对局行为，而非适应度数值。
+     */
+    public String profile() {
+        StringBuilder sb = new StringBuilder(5);
+        sb.append(bin(vec[0]));  // 攻击性（命中）
+        sb.append(bin(vec[3]));  // 长弓倾向
+        sb.append(bin(vec[4]));  // 传送机动
+        sb.append(bin(vec[5]));  // 蹲坑程度
+        sb.append(bin(vec[7]));  // 主动移动
+        return sb.toString();
+    }
+
+    private static char bin(float v) {
+        return v < 0.25f ? '0' : (v < 0.6f ? '1' : '2');
+    }
+
     private static float clamp(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
 
     public static BehaviorSignature from(MatchStats m, Genome g) {

@@ -36,8 +36,8 @@ public class GeometryDuelGame extends Game {
     /** 对手风格：-1=经典规则AI，0=总冠军，1..N=各物种冠军 */
     public int opponentStyle = 0;
     public boolean trainingEnabled = true;
-    /** AI 决策速度：0=30Hz 1=20Hz 2=15Hz 3=12Hz (skipFrames = index+1) */
-    public int aiSpeed = 1;  // default 20Hz
+    /** AI 决策速度：0=30Hz 1=20Hz 2=15Hz 3=12Hz (skipFrames = index+1)。训练线程也会读取。 */
+    public volatile int aiSpeed = 1;  // default 20Hz
 
     public Sound sFire, lFire, longShotCharged, lFireHurt;
     public final HardwareInfo hardware = new HardwareInfo();

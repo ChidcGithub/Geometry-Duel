@@ -141,10 +141,10 @@ public class NeatEvolver {
         // ---- 构建下一代 + 精英保留 (D) ----
         ArrayList<Genome> next = new ArrayList<Genome>();
 
-        // 精英：每个物种保留 ELITES_PER_SPECIES 个最佳个体
+        // 精英：每个物种保留 ELITES_PER_SPECIES 个最佳个体（物种≥3人才保留）
         for (int s = 0; s < species.size(); s++) {
             SpeciesInfo si = species.get(s);
-            if (si.members.size() < 2) continue;
+            if (si.members.size() < 3) continue;
             // 按适应度排序取前 ELITES_PER_SPECIES
             int[] sorted = new int[si.members.size()];
             for (int k = 0; k < sorted.length; k++) sorted[k] = si.members.get(k);
@@ -205,10 +205,12 @@ public class NeatEvolver {
         return best;
     }
 
-    /** 使用基因组自身的突变率 (B) */
+    /** 使用基因组自身的突变率 (B)。轮盘按各率之和归一化，保证所有变异类型按设定比例发生。 */
     private void mutateWithOwnRates(Genome g) {
         g.mutateMutationRates(rng); // 先变异突变率本身
-        float r = rng.nextFloat();
+        float total = g.weightMutProb + g.addNodeProb + g.addConnProb + g.toggleProb
+                + g.resetProb + g.activationProb + g.removeProb;
+        float r = rng.nextFloat() * total;
         float a = g.weightMutProb;
         float b = a + g.addNodeProb;
         float c = b + g.addConnProb;

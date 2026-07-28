@@ -46,6 +46,19 @@ public class NoveltyArchive {
         return sum / k;
     }
 
+    /** 同代新颖性：与同代其他个体行为签名的平均距离。 */
+    public static float peerNovelty(BehaviorSignature sig, BehaviorSignature[] peers, int count) {
+        float sum = 0f;
+        int n = 0;
+        for (int i = 0; i < count; i++) {
+            BehaviorSignature p = peers[i];
+            if (p == null || p == sig) continue;
+            sum += sig.distance(p);
+            n++;
+        }
+        return n > 0 ? sum / n : 0f;
+    }
+
     /** 尝试将签名加入存档 */
     public void tryAdd(BehaviorSignature sig) {
         if (rng.nextFloat() < ADD_PROB) {

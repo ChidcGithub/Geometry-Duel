@@ -64,6 +64,8 @@ public class NeatTrainer {
     /** 重置请求：由渲染线程发起、训练线程执行，避免在 UI 线程做重活。 */
     private volatile boolean resetRequested;
     private volatile int pendingRayCount;
+    /** 幽灵入库请求：IO 由训练线程执行，避免渲染线程写大 JSON。 */
+    private volatile boolean ghostSaveRequested;
     private volatile float realMatchBonus;
     private float championElo = 1200f;
     private int playerWins, playerLosses;
@@ -148,6 +150,7 @@ public class NeatTrainer {
                 rayCount = newRayCount;
                 NeatStorage.clear();
                 ghosts.clear();
+                ghostSaveRequested = false;
                 champion = null;
                 championPool.clear();
                 historicalChampions.clear();
@@ -187,7 +190,7 @@ public class NeatTrainer {
         championElo = updateElo(championElo, opponentRating, m.aiWon);
         float eloDiff = opponentRating - championElo;
         float mult = 1f + Math.max(-0.5f, Math.min(0.5f, eloDiff / 400f));
-        realMatchBonus += (m.aiWon ? 300f : -20f) * mult + m.teleportKills * 15f;
+        realMatchBonus += (m.aiWon ? 1000f : -30f) * mult + m.teleportKills * 15f;
     }
 
     private static float updateElo(float rating, float oppRating, boolean won) {
@@ -213,7 +216,8 @@ public class NeatTrainer {
             }
             ghosts.remove(worst);
         }
-        NeatStorage.saveGhosts(new ArrayList<GhostData>(ghosts));
+        // JSON 写盘挪到训练线程执行，避免渲染线程 IO 卡顿
+        ghostSaveRequested = true;
     }
 
     public int ghostCount() { return ghosts.size(); }
@@ -274,6 +278,11 @@ public class NeatTrainer {
                 resetRequested = false;
                 doReset(pendingRayCount);
                 continue;
+            }
+            // 幽灵入库：暂停期间（玩家对战结束上报时）也要执行
+            if (ghostSaveRequested) {
+                ghostSaveRequested = false;
+                NeatStorage.saveGhosts(new ArrayList<GhostData>(ghosts));
             }
             if (paused || converged) { sleep(200); continue; }
             try { runGeneration(); checkConvergence(); }
@@ -350,18 +359,15 @@ public class NeatTrainer {
                 if (stopped || paused || resetting) { latch.countDown(); return; }
                 float f = 0f;
                 int n = 0;
-                MatchStats firstStats = null;
 
                 // 第一局 vs 规则AI：捕获行为签名 (C)
-                if (n == 0) {
-                    firstStats = simulate(g, null, null, level, rngPerThread.get());
-                    f += firstStats.fitness(shaping); n++;
-                    sigs[index] = BehaviorSignature.from(firstStats, g);
-                }
-                simMatches.addAndGet(dynamicSimsPerMatch);
+                MatchStats firstStats = simulate(g, null, null, level, rngPerThread.get());
+                f += firstStats.fitness(shaping); n++;
+                sigs[index] = BehaviorSignature.from(firstStats, g);
+                simMatches.addAndGet(1);
                 for (int s = 1; s < dynamicSimsPerMatch; s++) {
                     f += simulate(g, null, null, level, rngPerThread.get()).fitness(shaping); n++;
-                    simMatches.addAndGet(dynamicSimsPerMatch);
+                    simMatches.addAndGet(1);
                 }
                 if (champOpponent != null) { f += evaluate(g, champOpponent, null, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
                 if (ghost != null) { f += evaluate(g, null, ghost, shaping, 1.0f); n++; simMatches.addAndGet(dynamicSimsPerMatch); }
@@ -369,8 +375,8 @@ public class NeatTrainer {
 
                 f /= n;
 
-                // 策略多样性奖励
-                String profile = extractStrategyProfile(g, f);
+                // 策略多样性奖励（基于真实行为签名，非适应度数值）
+                String profile = sigs[index] != null ? sigs[index].profile() : "unknown";
                 synchronized (strategyCounts) {
                     int cnt = strategyCounts.getOrDefault(profile, 0) + 1;
                     strategyCounts.put(profile, cnt);
@@ -384,6 +390,8 @@ public class NeatTrainer {
         }
 
         try { latch.await(); } catch (InterruptedException e) { return; }
+        // 暂停/停止/重置时中止本代，避免残缺适应度（跳过个体=0分）污染进化
+        if (stopped || paused || resetting) return;
 
         // 2. 同代对战（2轮）—— 等主评估全完成再提交，避免竞态覆盖
         int sameGenTasks = 2 * (total / 2);
@@ -406,20 +414,30 @@ public class NeatTrainer {
         }
 
         try { sameGenLatch.await(); } catch (InterruptedException e) { return; }
-        if (stopped || resetting) return;
+        if (stopped || paused || resetting) return;
 
         // 3. 新颖性奖励 (C)：与存档+同代相比越独特越加分
         for (int i = 0; i < total; i++) {
             if (sigs[i] != null) {
                 float nov = noveltyArchive.novelty(sigs[i]);
-                fitness[i] += nov * 12f * shaping; // 最多+12（非常独特时）
+                float peerNov = NoveltyArchive.peerNovelty(sigs[i], sigs, total);
+                fitness[i] += (nov * 0.6f + peerNov * 0.4f) * 12f * shaping; // 最多+12（非常独特时）
             }
+        }
+
+        // 实战奖励定向强化冠军血脉（与玩家对战的对手），而非随机高分个体
+        if (bonusToApply != 0f && champion != null) {
+            int ci = 0;
+            float cd = Float.MAX_VALUE;
+            for (int i = 0; i < total; i++) {
+                float d = pop.get(i).distance(champion);
+                if (d < cd) { cd = d; ci = i; }
+            }
+            fitness[ci] += bonusToApply;
         }
 
         int best = 0;
         for (int i = 1; i < fitness.length; i++) if (fitness[i] > fitness[best]) best = i;
-
-        fitness[best] += bonusToApply;
 
         synchronized (evolverLock) {
             if (ev != evolver || resetting) return;
@@ -470,6 +488,8 @@ public class NeatTrainer {
             pooledEngineA.set(engA);
         } else engA.setGenome(candidate, rays);
         engA.reset();
+        // 训练与实战推理频率保持一致（AI Speed 设置）
+        engA.setSkipFrames(app.aiSpeed + 1);
         final NeatEngine engineA = engA;
 
         // ---- 引擎 B (对手) ----
@@ -485,6 +505,7 @@ public class NeatTrainer {
                 pooledEngineB.set(engB);
             } else engB.setGenome(vsGenome, rays);
             engB.reset();
+            engB.setSkipFrames(app.aiSpeed + 1);
             final NeatEngine eB = engB;
             factoryB = s -> eB;
         } else {
@@ -518,21 +539,6 @@ public class NeatTrainer {
     }
 
     // ------------------------------------------------------------ 早停 / 多样性
-
-    private String extractStrategyProfile(Genome g, float fitness) {
-        // 基于适应度特征分类（在评估后传入MatchStats会更准确，这里用fitness粗略估计）
-        StringBuilder sb = new StringBuilder();
-        // 根据适应度值范围推断战术类型
-        if (fitness > 80) sb.append("A");  // 攻击型（高命中/击杀）
-        else if (fitness > 50) sb.append("B");  // 平衡型
-        else if (fitness > 30) sb.append("D");  // 防御型
-        else sb.append("P");  // 被动型
-
-        // 结合基因组复杂度
-        int conns = g.conns.size();
-        if (conns > 400) sb.append("C"); else if (conns > 200) sb.append("M"); else sb.append("S");
-        return sb.toString();
-    }
 
     private void checkConvergence() {
         fitnessHistory.add(bestFitness);
