@@ -106,7 +106,7 @@ public class NeatTrainer {
      */
     public void reportRealMatch(MatchStats m) {
         realMatchBonus += (m.aiWon ? 1000f : -30f)
-                + Math.min(m.longShotsFired, 10) * 2f
+                + Math.min(m.longShotsFired, 10) * 3f
                 + Math.min(m.teleportsUsed, 8) * 1f
                 + m.teleportKills * 20f
                 + Math.min(m.aimedFrames, 300) * 0.05f;

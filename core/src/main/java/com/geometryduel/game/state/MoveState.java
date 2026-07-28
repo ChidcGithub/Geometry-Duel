@@ -17,7 +17,7 @@ public class MoveState extends PlayerState {
         p.addVelocity(p.engine.horizontalMove, p.engine.verticalMove);
         if (p.engine.shotButtonPressed) {
             p.state = drawShortbowState.entryState(p);
-            p.aimAngle = enemyAngle(p);
+            // 短弓不再入场瞬瞄，由 DrawShortbowState 缓慢追踪
         } else if (p.engine.longShotButtonPressed) {
             p.state = drawLongbowState.entryState(p);
             p.aimAngle = enemyAngle(p);

@@ -29,7 +29,7 @@ public class MatchStats {
         f += hitsDealt * 15f;
         f -= hitsTaken * 5f;
         f += Math.min(shotsFired, 40) * 0.5f * shaping;
-        f += Math.min(longShotsFired, 10) * 8f * shaping; // 大招重奖（8/支）
+        f += Math.min(longShotsFired, 10) * 12f * shaping; // 大招重奖（12/支，鼓励用大招）
         f += Math.min(teleportsUsed, 8) * 2f * shaping;   // 闪避轻奖（随课程衰减但不归零）
         f += teleportKills * 20f; // 传送→5秒内击杀连击：+20，不衰减，鼓励「闪避是为了进攻」
         // 大招瞄准奖：蓄力期间对准敌人的每帧 +0.05（封顶 300 帧=5 秒），稠密信号引导学会瞄准

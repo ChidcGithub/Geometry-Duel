@@ -17,6 +17,7 @@ public class PlayerActor extends Actor {
     public static final float MAX_VX = 10f, MAX_VY = 7f, FRICTION = 0.92f;
     public static final int TELEPORT_MARK_DURATION = 900; // 传送标记有效期 15 秒
     public static final int TELEPORT_HIT_PENALTY = 240;   // 标记期间受击一次 -4 秒
+    public static final int TELEPORT_COOLDOWN = 180;      // 回传后 3 秒冷却
 
     public final GameSystem sys;
     public final PlayerEngine engine;
@@ -27,11 +28,12 @@ public class PlayerActor extends Actor {
     public int chargedFrameCount;
     public int damageRemainingFrameCount;
 
-    /** 传送标记：按 C 记录锚点，15 秒内再按 C 瞬移回锚点；受击每次 -4 秒。 */
+    /** 传送标记：按 C 记录锚点，15 秒内再按 C 瞬移回锚点；受击每次 -4 秒；回传后 3 秒冷却。 */
     public boolean teleportMarked;
     public float teleportAnchorX, teleportAnchorY;
     public int teleportMarkRemaining;
     public int teleportRecallCount;
+    public int teleportCooldown;
     private boolean prevTeleportPressed;
 
     public PlayerActor(GameSystem sys, PlayerEngine engine, Color fillColor) {
@@ -58,21 +60,24 @@ public class PlayerActor extends Actor {
         boolean pressed = engine.teleportButtonPressed;
         if (pressed && !prevTeleportPressed) {
             if (!teleportMarked) {
-                teleportMarked = true;
-                teleportAnchorX = pos.x;
-                teleportAnchorY = pos.y;
-                teleportMarkRemaining = TELEPORT_MARK_DURATION;
-                sys.particles.builder()
-                        .type(3).position(pos.x, pos.y)
-                        .polarVelocity(0, 0)
-                        .particleSize(60f)
-                        .particleColor(sys.theme().teleportStroke)
-                        .weight(8f).lifespanSecond(0.4f)
-                        .buildInto();
+                if (teleportCooldown <= 0) { // 冷却中不可标记
+                    teleportMarked = true;
+                    teleportAnchorX = pos.x;
+                    teleportAnchorY = pos.y;
+                    teleportMarkRemaining = TELEPORT_MARK_DURATION;
+                    sys.particles.builder()
+                            .type(3).position(pos.x, pos.y)
+                            .polarVelocity(0, 0)
+                            .particleSize(60f)
+                            .particleColor(sys.theme().teleportStroke)
+                            .weight(8f).lifespanSecond(0.4f)
+                            .buildInto();
+                }
             } else {
                 pos.set(teleportAnchorX, teleportAnchorY);
                 teleportMarked = false;
                 teleportRecallCount++;
+                teleportCooldown = TELEPORT_COOLDOWN;
                 sys.screenShakeValue += 10f;
                 sys.particles.builder()
                         .type(3).position(pos.x, pos.y)
@@ -109,6 +114,7 @@ public class PlayerActor extends Actor {
         if (teleportMarked && --teleportMarkRemaining <= 0) {
             teleportMarked = false;
         }
+        if (teleportCooldown > 0) teleportCooldown--;
     }
 
     @Override

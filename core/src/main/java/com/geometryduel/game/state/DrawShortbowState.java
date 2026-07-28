@@ -6,8 +6,8 @@ import com.geometryduel.game.actor.ShortbowArrow;
 import com.geometryduel.render.Shapes;
 
 /**
- * 短弓（普通攻击）状态，还原 Server/ClientDrawShortbowPlayerActorState：
- * - 按住 Z：自动瞄准敌人，每 12 帧射一箭（frameCount % 12 == 0）
+ * 短弓（普通攻击）状态，还原 Server/ClientDrawShortbowPlayerActorState（对焦已削弱）：
+ * - 按住 Z：瞄准线以 2°/帧 缓慢转向敌人（原为瞬时对焦），每 12 帧射一箭（frameCount % 12 == 0）
  * - 箭生成于玩家前方 24 处，初速 24
  * - 移动减速为 0.25 倍
  * - 特效：70 长瞄准线 + 半径 50、张角 45° 的弓弧
@@ -16,6 +16,7 @@ public class DrawShortbowState extends PlayerState {
     public static final int FIRE_INTERVAL = 12;
     public static final float ARROW_OFFSET = 24f, ARROW_SPEED = 24f;
     public static final float MOVE_SCALE = 0.25f;
+    public static final float AIM_TURN_SPEED = 0.035f; // 对焦速度 2°/帧（180° 转身需 1.5 秒）
 
     private final GameSystem sys;
 
@@ -25,7 +26,13 @@ public class DrawShortbowState extends PlayerState {
 
     @Override
     public void act(PlayerActor p) {
-        p.aimAngle = enemyAngle(p); // 自动瞄准
+        // 缓慢追踪：每帧向敌人方向最多转 AIM_TURN_SPEED
+        float diff = enemyAngle(p) - p.aimAngle;
+        while (diff > 3.1415927f) diff -= 6.2831855f;
+        while (diff < -3.1415927f) diff += 6.2831855f;
+        if (diff > AIM_TURN_SPEED) diff = AIM_TURN_SPEED;
+        else if (diff < -AIM_TURN_SPEED) diff = -AIM_TURN_SPEED;
+        p.aimAngle += diff;
         p.addVelocity(p.engine.horizontalMove * MOVE_SCALE, p.engine.verticalMove * MOVE_SCALE);
         if (sys.frameCount % FIRE_INTERVAL == 0) fire(p);
         if (!p.engine.shotButtonPressed) {
