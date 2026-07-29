@@ -63,7 +63,7 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
     }
 
     /** 当前线程的随机源（initialValue 保证非空）。 */
-    private fun threadRng(): Random = threadRng()
+    private fun threadRng(): Random = rngPerThread.get()
     private val pooledEngineA = ThreadLocal<NeatEngine?>()
     private val pooledEngineB = ThreadLocal<NeatEngine?>()
     private val pooledTracker = ThreadLocal<MatchTracker?>()
