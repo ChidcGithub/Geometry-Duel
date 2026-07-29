@@ -1,9 +1,8 @@
 # Built files
 /build/
-/core/build/
-/android/build/
-/desktop/build/
-/android/release/
+/app/build/
+/app/release/
+/legacy/**/build/
 
 # IDE
 .idea/

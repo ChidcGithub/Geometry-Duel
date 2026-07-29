@@ -1,0 +1,21 @@
+[versions]
+agp = "9.2.1"
+# 与 AGP 9.2 内置 Kotlin (KGP 2.3.10) 匹配的 Compose 编译器插件
+kotlin = "2.3.10"
+compose-bom = "2026.01.01"
+# 1.5.0-alpha 包含全部 Material 3 Expressive API（1.4.0 稳定版已移除实验 Expressive API）
+material3 = "1.5.0-alpha22"
+activity-compose = "1.11.0"
+
+[libraries]
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
