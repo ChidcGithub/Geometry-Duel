@@ -23,7 +23,7 @@ import com.geometryduel.theme.GamePalette
 class DuelController(private val context: Context) {
 
     companion object {
-        const val VERSION = "3.0.0"
+        const val VERSION = "3.145.912"
     }
 
     private val prefs: SharedPreferences =

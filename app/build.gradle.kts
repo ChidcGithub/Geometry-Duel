@@ -20,8 +20,8 @@ android {
         applicationId = "com.geometryduel"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "3.0.0"
+        versionCode = 7
+        versionName = "3.145.912"
     }
 
     buildTypes {

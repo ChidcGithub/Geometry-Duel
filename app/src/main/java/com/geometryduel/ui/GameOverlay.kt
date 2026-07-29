@@ -174,10 +174,13 @@ private fun BoxScope.InstructionPanel(alpha: Float) {
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                "Made by FAL! Android port by Pama1234!\nUnofficial Remake",
+                "Made by FAL! Android port by Pama1234!\nUnofficial Remake\nSelf-learning AI by Chidc",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.padding(top = 20.dp)
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp)
             )
         }
     }
