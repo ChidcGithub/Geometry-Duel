@@ -98,6 +98,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
 
     // ---- 训练速度指标与看门狗 ----
     @Volatile private var genRate = 0f                // gen/s EMA
+    @Volatile private var simRate = 0f                // sim/s EMA（按代内实际模拟局数计）
+    private var lastSimCount = 0L
     private var lastSaveMs = 0L
     /** 重置请求：由渲染线程发起、训练线程执行，避免在 UI 线程做重活。 */
     @Volatile private var resetRequested = false
@@ -210,6 +212,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
                 plateauCount = 0
                 diversityInjected = false
                 genRate = 0f
+                simRate = 0f
+                lastSimCount = 0L
                 lastSaveMs = 0L
             } finally {
                 resetting = false
@@ -317,6 +321,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
     fun championWinRate() = champWinRateEma
     /** 训练速度（gen/s EMA）。 */
     fun genRate() = genRate
+    /** 模拟速度（sim/s EMA，按代内实际对局数计）。 */
+    fun simRate() = simRate
     /** 距上次实战已训练的代数（战后预算用量）。 */
     fun gensSinceLastMatch() = gensSinceLastMatch
     /** 战后训练轮数是否已达上限（自动暂停中）。 */
@@ -561,6 +567,10 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
         if (genMs > 0) {
             val instant = 1000f / genMs
             genRate = if (genRate <= 0f) instant else genRate * 0.8f + instant * 0.2f
+            val simsNow = simMatches.get()
+            val instantSims = (simsNow - lastSimCount) * 1000f / genMs
+            lastSimCount = simsNow
+            simRate = if (simRate <= 0f) instantSims else simRate * 0.8f + instantSims * 0.2f
         }
         if (generation >= 10 && generation % 10 == 0 && genMs > 6000L && dynamicSimsPerMatch > 3) {
             dynamicSimsPerMatch = max(3, dynamicSimsPerMatch - 2)

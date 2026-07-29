@@ -97,10 +97,13 @@ fun BoxScope.GameOverlay(
                         )
                     }
                     val wr = controller.trainer.championWinRate()
+                    val sr = controller.trainer.simRate()
+                    val simText = if (sr >= 1000f) "%.1fk".format(sr / 1000f)
+                    else "%.0f".format(sr)
                     Text(
                         "Gen ${controller.trainer.generation()}" +
                                 "  ·  WR ${if (wr < 0) "--" else "${Math.round(wr * 100)}%"}" +
-                                "  ·  ${"%.1f".format(controller.trainer.genRate())} g/s",
+                                "  ·  $simText sim/s",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 12.dp)
