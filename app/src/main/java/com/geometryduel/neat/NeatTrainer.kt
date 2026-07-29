@@ -78,6 +78,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
 
     @Volatile private var generation = 0
     @Volatile private var bestFitness = 0f
+    /** 距上次实战已训练的代数：达到 app.trainRoundLimit 后自动暂停，下一场实战重置。 */
+    @Volatile private var gensSinceLastMatch = 0
     private val simMatches = AtomicLong()
     @Volatile private var paused = false
     @Volatile private var stopped = false
@@ -192,6 +194,7 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
                 strategyCounts.clear()
                 generation = 0
                 bestFitness = 0f
+                gensSinceLastMatch = 0
                 simMatches.set(0)
                 realMatchBonus = 0f
                 championElo = 1200f
@@ -232,6 +235,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
     }
 
     fun reportRealMatch(m: MatchStats) {
+        // 每场实战重置战后训练预算，训练可再跑 trainRoundLimit 代
+        gensSinceLastMatch = 0
         playerWins += if (m.aiWon) 1 else 0
         playerLosses += if (m.aiWon) 0 else 1
         val total = playerWins + playerLosses
@@ -310,6 +315,10 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
     fun championWinRate() = champWinRateEma
     /** 训练速度（gen/s EMA）。 */
     fun genRate() = genRate
+    /** 距上次实战已训练的代数（战后预算用量）。 */
+    fun gensSinceLastMatch() = gensSinceLastMatch
+    /** 战后训练轮数是否已达上限（自动暂停中）。 */
+    fun roundLimitReached(): Boolean = gensSinceLastMatch >= app.trainRoundLimit
 
     // ------------------------------------------------------------ 训练循环
 
@@ -327,7 +336,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
                 ghostSaveRequested = false
                 NeatStorage.saveGhosts(ArrayList(ghosts))
             }
-            if (paused || converged) { sleep(200); continue }
+            // 达到战后训练轮数上限视同暂停（下一场实战或调大上限后自动恢复）
+            if (paused || converged || roundLimitReached()) { sleep(200); continue }
             try {
                 runGeneration()
                 checkConvergence()
@@ -527,6 +537,7 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
             bestFitness = max(bestFitness, fitness[best])
             ev.nextGeneration(fitness)
             generation++
+            gensSinceLastMatch++
 
             // 更新新颖性存档 (C)
             for (i in 0 until total) {

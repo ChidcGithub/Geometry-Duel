@@ -148,6 +148,29 @@ fun SettingsScreen(
                         checked = controller.trainingEnabled,
                         onToggle = { controller.toggleTraining() }
                     )
+                    // 战后训练轮数上限步进器
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Post-Match Train Limit", style = MaterialTheme.typography.bodyLarge)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            FilledTonalButton(
+                                onClick = { controller.updateTrainRoundLimit(controller.trainRoundLimit - 500) }
+                            ) { Text("-") }
+                            Text(
+                                "${controller.trainRoundLimit}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            FilledTonalButton(
+                                onClick = { controller.updateTrainRoundLimit(controller.trainRoundLimit + 500) }
+                            ) { Text("+") }
+                        }
+                    }
                     // 视野射线步进器
                     Row(
                         Modifier
@@ -206,6 +229,10 @@ fun SettingsScreen(
                             "Sims ${controller.trainer.simMatches()}" +
                                     "  ·  Ghosts ${controller.trainer.ghostCount()}" +
                                     if (controller.trainer.isConverged()) "  ·  Converged" else ""
+                        )
+                        InfoLine(
+                            "Post-match ${controller.trainer.gensSinceLastMatch()}/${controller.trainRoundLimit} gens" +
+                                    if (controller.trainer.roundLimitReached()) "  ·  Auto-paused (play a match to resume)" else ""
                         )
                     }
                 }

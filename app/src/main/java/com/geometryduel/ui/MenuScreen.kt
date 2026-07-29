@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -82,80 +85,92 @@ fun MenuScreen(
         Column(
             Modifier
                 .fillMaxSize()
+                .safeDrawingPadding()
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ---- Hero 标题：弹簧缩放 + 淡入 ----
-            val titleScale = Anim.lerp(0.86f, 1f, Anim.spring(Anim.clamp01(clock / 0.55f)))
-            val titleAlpha = Anim.decelerate(Anim.clamp01(clock / 0.35f))
-            Text(
-                "GEOMETRY DUEL",
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                modifier = Modifier
-                    .padding(top = 48.dp)
-                    .graphicsLayer {
-                        scaleX = titleScale
-                        scaleY = titleScale
-                        alpha = titleAlpha
-                    }
-            )
-            Text(
-                "N E A T   A I   E D I T I O N",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f * titleAlpha),
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            // 横屏高度有限：内容超出时可滚动，保证 Settings 按钮可达
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // ---- Hero 标题：弹簧缩放 + 淡入 ----
+                val titleScale = Anim.lerp(0.86f, 1f, Anim.spring(Anim.clamp01(clock / 0.55f)))
+                val titleAlpha = Anim.decelerate(Anim.clamp01(clock / 0.35f))
+                Text(
+                    "GEOMETRY DUEL",
+                    style = MaterialTheme.typography.displayMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .graphicsLayer {
+                            scaleX = titleScale
+                            scaleY = titleScale
+                            alpha = titleAlpha
+                        }
+                )
+                Text(
+                    "N E A T   A I   E D I T I O N",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f * titleAlpha),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
 
-            // ---- AI 状态 chips ----
-            chipsVersion // 订阅刷新
-            val chipAlpha = Anim.decelerate(Anim.stagger(clock, 2, 0.09f, 0.45f))
-            if (chipAlpha > 0f) {
-                val chips = buildChips(controller)
-                Row(
-                    Modifier
-                        .padding(top = 18.dp)
-                        .graphicsLayer { alpha = chipAlpha },
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    for (chip in chips) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = MaterialTheme.shapes.large
-                        ) {
-                            Text(
-                                chip,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                            )
+                // ---- AI 状态 chips ----
+                chipsVersion // 订阅刷新
+                val chipAlpha = Anim.decelerate(Anim.stagger(clock, 2, 0.09f, 0.45f))
+                if (chipAlpha > 0f) {
+                    val chips = buildChips(controller)
+                    Row(
+                        Modifier
+                            .padding(top = 10.dp)
+                            .graphicsLayer { alpha = chipAlpha },
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        for (chip in chips) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = MaterialTheme.shapes.large
+                            ) {
+                                Text(
+                                    chip,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // ---- 主按钮列：stagger 上浮入场 ----
-            Column(
-                Modifier
-                    .padding(top = 36.dp)
-                    .widthIn(max = 320.dp)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
-            ) {
-                MenuButton(0, clock, filled = 0, text = "Start Game", onClick = onStart)
-                MenuButton(1, clock, filled = 1, text = "Tutorial", onClick = onTutorial)
-                MenuButton(2, clock, filled = 2, text = "Settings", onClick = onSettings)
-            }
-
-            // ---- 底部硬件信息 ----
-            Box(Modifier.fillMaxSize()) {
+                // ---- 主按钮列：stagger 上浮入场 ----
                 Column(
                     Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(bottom = 12.dp)
+                        .padding(top = 20.dp, bottom = 12.dp)
+                        .widthIn(max = 320.dp)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    MenuButton(0, clock, filled = 0, text = "Start Game", onClick = onStart)
+                    MenuButton(1, clock, filled = 1, text = "Tutorial", onClick = onTutorial)
+                    MenuButton(2, clock, filled = 2, text = "Settings", onClick = onSettings)
+                }
+            }
+
+            // ---- 底部硬件信息（固定在滚动区外）----
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Column {
                     Text(
                         "GPU: ${HardwareInfo.gpuRenderer}",
                         style = MaterialTheme.typography.labelSmall,
@@ -171,10 +186,7 @@ fun MenuScreen(
                 Text(
                     "v${DuelController.VERSION}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 12.dp)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                 )
             }
         }
