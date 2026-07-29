@@ -103,6 +103,11 @@ class GameSystem(
         ).toFloat()
 
         background = if (muted) null else GameBackground(theme().backgroundLine, 0.1f)
+        // addPlayer 是延迟入列：先 flush 保证 players 立即可判，
+        // 否则无头模拟（直接进入 PlayGameState）首帧 checkStateTransition
+        // 会因 players 为空误判一方全灭，每场对战 1 帧即结束
+        myGroup.flushPending()
+        otherGroup.flushPending()
         // 无头模拟跳过 180 帧开局倒计时（期间引擎不 act、玩家静止，物理等价）
         currentState = if (muted) PlayGameState(this) else StartGameState(this)
     }

@@ -15,17 +15,24 @@ class ActorGroup(val id: Int) {
     private val removeArrows = ArrayList<ArrowActor>()
 
     fun update() {
+        flushPending()
+        for (p in players) p.update()
+        for (a in arrows) a.update()
+    }
+
+    /**
+     * 挂起的增删立即生效。无头模拟开局即进入 PlayGameState（跳过倒计时），
+     * 若不在构造后先行 flush，首帧 checkStateTransition 会看到空 players 而直接判负。
+     */
+    fun flushPending() {
         players.removeAll(removePlayers)
         players.addAll(addPlayers)
         removePlayers.clear()
         addPlayers.clear()
-        for (p in players) p.update()
-
         arrows.removeAll(removeArrows)
         arrows.addAll(addArrows)
         removeArrows.clear()
         addArrows.clear()
-        for (a in arrows) a.update()
     }
 
     fun act() {

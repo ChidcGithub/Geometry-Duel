@@ -13,8 +13,9 @@ import java.io.File
  */
 object NeatStorage {
     private const val TAG = "NeatStorage"
-    // v4: NeatNetwork 输入/输出映射修正（旧权重适配的是错误的 I/O 排列，直接作废重训）
-    private const val VERSION = 4
+    // v5: 修复无头对局 1 帧判负（players 延迟入列 + 先 transition 后 update），
+    //     此前所有存档的适应度均为空对局噪声，训练成果无效，强制重训
+    private const val VERSION = 5
     /** 幽灵录像独立版本号。 */
     private const val GHOST_VERSION = 2
     private const val FILE = "neat-ai.json"
