@@ -43,10 +43,14 @@ class GhostData {
         var moveFrames = 0
         var teleportFrames = 0
         for (i in 0 until frames) {
-            if (abs(moveX[i].toInt()) > 10 || abs(moveY[i].toInt()) > 10) moveFrames++
-            if (shotAt(i) || longShotAt(i)) shotFrames++
-            if (teleportAt(i)) teleportFrames++
-            if (moveFrames > 0 || shotFrames > 0 || teleportFrames > 0) activeFrames++
+            val moving = abs(moveX[i].toInt()) > 10 || abs(moveY[i].toInt()) > 10
+            val shooting = shotAt(i) || longShotAt(i)
+            val teleporting = teleportAt(i)
+            if (moving) moveFrames++
+            if (shooting) shotFrames++
+            if (teleporting) teleportFrames++
+            // 活跃按单帧判定：之前误用累计计数，首次活动后所有帧都算活跃，过滤失效
+            if (moving || shooting || teleporting) activeFrames++
         }
         val active = activeFrames / frames.toFloat()
         val shot = shotFrames / frames.toFloat()

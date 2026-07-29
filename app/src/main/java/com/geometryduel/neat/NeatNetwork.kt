@@ -16,6 +16,8 @@ class NeatNetwork(g: Genome, val inputCount: Int, val outputCount: Int) {
     private val srcLen: IntArray
     private val recLen: IntArray
     private val activations: IntArray
+    /** 输入/输出节点位置按节点 id 固定映射（拓扑序随基因组结构而变，不能按序号假设）。 */
+    private val inputPositions: IntArray
     private val outputPositions: IntArray
     /** 循环连接源节点位置（去重）：eval/reset 只需同步这些位置。 */
     private val recSrcPositions: IntArray
@@ -148,10 +150,8 @@ class NeatNetwork(g: Genome, val inputCount: Int, val outputCount: Int) {
         activations = IntArray(orderLen)
 
         val actMap = HashMap<Int, Int>()
-        val outputIds = HashSet<Int>()
         for (n in g.nodes) {
             actMap[n.id] = n.activation
-            if (n.type == Genome.OUTPUT) outputIds.add(n.id)
         }
 
         for (i in 0 until orderLen) {
@@ -196,13 +196,15 @@ class NeatNetwork(g: Genome, val inputCount: Int, val outputCount: Int) {
             }
         }
 
-        // 输出节点位置（按拓扑序扫描一次）
-        outputPositions = IntArray(outputCount)
-        var found = 0
-        var i = 0
-        while (i < orderLen && found < outputCount) {
-            if (outputIds.contains(ord[i])) outputPositions[found++] = i
-            i++
+        // 输入/输出节点位置：按节点 id 精确映射（输入 id 0..inputCount-1，
+        // 输出 id inputCount..inputCount+outputCount-1，由 Genome 构建约定保证）。
+        // 拓扑序会随隐藏节点结构变化，按扫描顺序假设会导致 I/O 语义随结构漂移。
+        inputPositions = IntArray(inputCount) { id ->
+            if (id <= maxNodeId) nodeIdToPos[id] else -1
+        }
+        outputPositions = IntArray(outputCount) { k ->
+            val id = inputCount + k
+            if (id <= maxNodeId) nodeIdToPos[id] else -1
         }
 
         // 循环连接源节点去重列表：prevValues 只被这些位置读取
@@ -236,7 +238,10 @@ class NeatNetwork(g: Genome, val inputCount: Int, val outputCount: Int) {
      * 求值：前向连接用当前值，循环连接用上一帧的值。
      */
     fun eval(inputs: FloatArray, out: FloatArray): FloatArray {
-        System.arraycopy(inputs, 0, values, 0, inputCount)
+        for (k in 0 until inputCount) {
+            val p = inputPositions[k]
+            if (p >= 0) values[p] = inputs[k]
+        }
 
         for (i in 0 until orderLen) {
             if (isInput[i]) continue
@@ -259,8 +264,10 @@ class NeatNetwork(g: Genome, val inputCount: Int, val outputCount: Int) {
         for (i in recSrcPositions.indices)
             prevValues[recSrcPositions[i]] = values[recSrcPositions[i]]
 
-        for (i in 0 until outputCount)
-            out[i] = values[outputPositions[i]]
+        for (i in 0 until outputCount) {
+            val p = outputPositions[i]
+            out[i] = if (p >= 0) values[p] else 0f
+        }
         return out
     }
 

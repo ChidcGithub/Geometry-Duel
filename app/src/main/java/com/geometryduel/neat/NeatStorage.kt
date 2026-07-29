@@ -13,7 +13,8 @@ import java.io.File
  */
 object NeatStorage {
     private const val TAG = "NeatStorage"
-    private const val VERSION = 3
+    // v4: NeatNetwork 输入/输出映射修正（旧权重适配的是错误的 I/O 排列，直接作废重训）
+    private const val VERSION = 4
     /** 幽灵录像独立版本号。 */
     private const val GHOST_VERSION = 2
     private const val FILE = "neat-ai.json"
