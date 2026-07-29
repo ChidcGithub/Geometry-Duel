@@ -78,8 +78,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
 
     @Volatile private var generation = 0
     @Volatile private var bestFitness = 0f
-    /** 距上次实战已训练的代数：达到 app.trainRoundLimit 后自动暂停，下一场实战重置。 */
-    @Volatile private var gensSinceLastMatch = 0
+    /** 上次实战结束时的累计 sims 基线：战后预算按 sims 计，达到 app.trainSimLimit 自动暂停。 */
+    @Volatile private var simCountAtLastMatch = 0L
     private val simMatches = AtomicLong()
     @Volatile private var paused = false
     @Volatile private var stopped = false
@@ -196,8 +196,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
                 strategyCounts.clear()
                 generation = 0
                 bestFitness = 0f
-                gensSinceLastMatch = 0
                 simMatches.set(0)
+                simCountAtLastMatch = 0L
                 realMatchBonus = 0f
                 championElo = 1200f
                 playerWins = 0; playerLosses = 0
@@ -239,8 +239,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
     }
 
     fun reportRealMatch(m: MatchStats) {
-        // 每场实战重置战后训练预算，训练可再跑 trainRoundLimit 代
-        gensSinceLastMatch = 0
+        // 每场实战重置战后训练预算，训练可再跑 trainSimLimit 局模拟
+        simCountAtLastMatch = simMatches.get()
         playerWins += if (m.aiWon) 1 else 0
         playerLosses += if (m.aiWon) 0 else 1
         val total = playerWins + playerLosses
@@ -323,10 +323,10 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
     fun genRate() = genRate
     /** 模拟速度（sim/s EMA，按代内实际对局数计）。 */
     fun simRate() = simRate
-    /** 距上次实战已训练的代数（战后预算用量）。 */
-    fun gensSinceLastMatch() = gensSinceLastMatch
-    /** 战后训练轮数是否已达上限（自动暂停中）。 */
-    fun roundLimitReached(): Boolean = gensSinceLastMatch >= app.trainRoundLimit
+    /** 距上次实战已训练的 sims（战后预算用量）。 */
+    fun simsSinceLastMatch(): Long = simMatches.get() - simCountAtLastMatch
+    /** 战后训练 sims 是否已达上限（自动暂停中）。 */
+    fun simLimitReached(): Boolean = simsSinceLastMatch() >= app.trainSimLimit
 
     // ------------------------------------------------------------ 训练循环
 
@@ -344,8 +344,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
                 ghostSaveRequested = false
                 NeatStorage.saveGhosts(ArrayList(ghosts))
             }
-            // 达到战后训练轮数上限视同暂停（下一场实战或调大上限后自动恢复）
-            if (paused || converged || roundLimitReached()) { sleep(200); continue }
+            // 达到战后训练 sims 上限视同暂停（下一场实战或调大上限后自动恢复）
+            if (paused || converged || simLimitReached()) { sleep(200); continue }
             try {
                 runGeneration()
                 checkConvergence()
@@ -545,7 +545,6 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
             bestFitness = max(bestFitness, fitness[best])
             ev.nextGeneration(fitness)
             generation++
-            gensSinceLastMatch++
 
             // 更新新颖性存档 (C)
             for (i in 0 until total) {
@@ -672,7 +671,8 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
             Log.i(TAG, "gen $generation diversity=${"%.3f".format(div)}" +
                     " threshold=${evolver?.compatThreshold ?: 3.0f}" +
                     " winRate=${if (champWinRateEma < 0) "?" else "%.2f".format(champWinRateEma)}")
-            if (div < 0.03f && generation >= MIN_GENS_FOR_STOP) tryReviveOrStop("population converged")
+            // 阈值随距离系数（×8）同步放大：等价于原来的 0.03
+            if (div < 0.25f && generation >= MIN_GENS_FOR_STOP) tryReviveOrStop("population converged")
         }
 
         if (champion == null || generation % CHAMP_EVAL_INTERVAL != 0) return

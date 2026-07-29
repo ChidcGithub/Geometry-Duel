@@ -156,18 +156,18 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Post-Match Train Limit", style = MaterialTheme.typography.bodyLarge)
+                        Text("Post-Match Sim Limit", style = MaterialTheme.typography.bodyLarge)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             FilledTonalButton(
-                                onClick = { controller.updateTrainRoundLimit(controller.trainRoundLimit - 500) }
+                                onClick = { controller.updateTrainSimLimit(controller.trainSimLimit - 1000) }
                             ) { Text("-") }
                             Text(
-                                "${controller.trainRoundLimit}",
+                                "${controller.trainSimLimit}",
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
                             FilledTonalButton(
-                                onClick = { controller.updateTrainRoundLimit(controller.trainRoundLimit + 500) }
+                                onClick = { controller.updateTrainSimLimit(controller.trainSimLimit + 1000) }
                             ) { Text("+") }
                         }
                     }
@@ -231,8 +231,8 @@ fun SettingsScreen(
                                     if (controller.trainer.isConverged()) "  ·  Converged" else ""
                         )
                         InfoLine(
-                            "Post-match ${controller.trainer.gensSinceLastMatch()}/${controller.trainRoundLimit} gens" +
-                                    if (controller.trainer.roundLimitReached()) "  ·  Auto-paused (play a match to resume)" else ""
+                            "Post-match ${controller.trainer.simsSinceLastMatch()}/${controller.trainSimLimit} sims" +
+                                    if (controller.trainer.simLimitReached()) "  ·  Auto-paused (play a match to resume)" else ""
                         )
                     }
                 }

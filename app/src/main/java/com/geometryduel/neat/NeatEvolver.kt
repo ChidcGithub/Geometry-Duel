@@ -166,10 +166,10 @@ class NeatEvolver {
         var remaining = populationSize - next.size
         if (totalAdjusted <= 0f) totalAdjusted = 1f
 
-        // 按物种配额生成后代
+        // 按物种配额生成后代（小物种也参与：新物种诞生时只有 1~2 个成员，
+        // 若不给繁殖配额会立刻被大物种挤占，物种永远起不来）
         for (si in species) {
             if (remaining <= 0) break
-            if (si.members.size < 3) continue
             var speciesSum = 0f
             for (idx in si.members) speciesSum += adjusted[idx]
             val quota = Math.round(speciesSum / totalAdjusted * remaining)

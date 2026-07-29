@@ -262,7 +262,10 @@ class Genome {
         var n = maxOf(conns.size, o.conns.size)
         if (n < 20) n = 1
         val wd = if (matching == 0) 0f else weightDiff / matching
-        return excess / n.toFloat() + disjoint / n.toFloat() + 0.4f * wd
+        // c1=c2=8：初始种群共享 ~470 条全连接基础块（n≈500），c=1 时结构差异
+        // 被大分母稀释，距离永远 << 阈值 3.0（种群永远只有 1 个物种）；
+        // 放大后谱系积累几十条独有连接即可达到阈值，物种真正形成
+        return (excess + disjoint) * 8f / n.toFloat() + 0.4f * wd
     }
 
     // ------------------------------------------------------------ 行为签名 (C)

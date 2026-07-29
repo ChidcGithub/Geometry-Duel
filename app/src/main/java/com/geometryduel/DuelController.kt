@@ -46,8 +46,8 @@ class DuelController(private val context: Context) {
         private set
     var trainingEnabled by mutableStateOf(true)
         private set
-    /** 每次对战后允许的后台训练轮数（代数）上限；达到后自动暂停，下一场实战重置预算。 */
-    var trainRoundLimit by mutableIntStateOf(6000)
+    /** 每次对战后允许的后台训练模拟局数（sims）上限；达到后自动暂停，下一场实战重置预算。 */
+    var trainSimLimit by mutableIntStateOf(10000)
         private set
     /** AI 决策速度：0=30Hz 1=20Hz 2=15Hz 3=12Hz (skipFrames = index+1)。训练线程也会读取。 */
     @Volatile var aiSpeed: Int = 1
@@ -163,7 +163,7 @@ class DuelController(private val context: Context) {
         visionRays = prefs.getInt("visionRays", 36)
         opponentStyle = prefs.getInt("opponentStyle", 0)
         trainingEnabled = prefs.getBoolean("trainingEnabled", true)
-        trainRoundLimit = prefs.getInt("trainRoundLimit", 6000).coerceIn(500, 6000)
+        trainSimLimit = prefs.getInt("trainSimLimit", 10000).coerceIn(1000, 10000)
         aiSpeed = prefs.getInt("aiSpeed", 1).coerceIn(0, 3)
         dynamicColor = prefs.getBoolean("dynamicColor", true)
         applyTheme()
@@ -177,7 +177,7 @@ class DuelController(private val context: Context) {
             .putInt("visionRays", visionRays)
             .putInt("opponentStyle", opponentStyle)
             .putBoolean("trainingEnabled", trainingEnabled)
-            .putInt("trainRoundLimit", trainRoundLimit)
+            .putInt("trainSimLimit", trainSimLimit)
             .putInt("aiSpeed", aiSpeed)
             .putBoolean("dynamicColor", dynamicColor)
             .apply()
@@ -229,9 +229,9 @@ class DuelController(private val context: Context) {
         if (opponentStyle > maxStyle) opponentStyle = -1
     }
 
-    /** 调整战后训练轮数上限（500~6000）。调大后若已因达限暂停会自动恢复训练。 */
-    fun updateTrainRoundLimit(limit: Int) {
-        trainRoundLimit = limit.coerceIn(500, 6000)
+    /** 调整战后训练 sims 上限（1000~10000）。调大后若已因达限暂停会自动恢复训练。 */
+    fun updateTrainSimLimit(limit: Int) {
+        trainSimLimit = limit.coerceIn(1000, 10000)
         saveConfig()
     }
 
