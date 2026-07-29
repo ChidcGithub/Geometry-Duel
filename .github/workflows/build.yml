@@ -28,31 +28,22 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :android:assembleDebug
+        run: ./gradlew :app:assembleDebug
 
       - name: Build Release APK
-        run: ./gradlew :android:assembleRelease
-
-      - name: Build Desktop distribution
-        run: ./gradlew :desktop:distZip
+        run: ./gradlew :app:assembleRelease
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: android/build/outputs/apk/debug/android-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-unsigned
-          path: android/build/outputs/apk/release/android-release-unsigned.apk
-
-      - name: Upload Desktop distribution
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-dist
-          path: desktop/build/distributions/*.zip
+          name: app-release
+          path: app/build/outputs/apk/release/app-release.apk
 
   release:
     needs: build
@@ -63,7 +54,7 @@ jobs:
       - name: Download APKs
         uses: actions/download-artifact@v4
         with:
-          name: app-debug
+          name: app-release
 
       - name: Determine prerelease
         id: meta
@@ -79,10 +70,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            android-debug.apk
+            app-release.apk
           prerelease: ${{ steps.meta.outputs.prerelease }}
           body: |
             Geometry Duel (几何决斗) ${{ github.ref_name }}
 
-            安装 `android-debug.apk` 到安卓设备即可游玩。
+            安装 `app-release.apk` 到安卓设备即可游玩。
           generate_release_notes: true
