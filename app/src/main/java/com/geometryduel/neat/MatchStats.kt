@@ -15,6 +15,8 @@ class MatchStats {
         const val COUNTDOWN_FRAMES = 180
         const val QUICK_WIN_FRAMES = 3600
         const val BEHAVIOR_CAP = 30f
+        /** 胜局基础分：任何败局的总分都必须低于它（胜利永远最大）。 */
+        const val WIN_SCORE = 100f
     }
 
     // ---- 基础 ----
@@ -69,7 +71,7 @@ class MatchStats {
         if (wallRatio > 1f) wallRatio = 1f
 
         // —— 效果项 ——
-        var f = if (aiWon) 100f else 0f
+        var f = if (aiWon) WIN_SCORE else 0f
         f += minOf(frames, 7200) / 7200f * 40f * (1f - wallRatio * 0.8f)
         f += hitsDealt * 15f
         f -= hitsTaken * 10f  // 受击翻倍（-5→-10，角落更容易被瞄准）
@@ -124,6 +126,9 @@ class MatchStats {
             // 超 20 秒未胜 → 归零，强推击杀欲望
             if (!aiWon && overtimeSec > 20f) f = minOf(f, -10f)
         }
+        // 胜利永远最大：败局总分封顶在胜局基础分之下，
+        // 防止行为奖励让"打得热闹但输了"反超一场胜利
+        if (!aiWon && f > WIN_SCORE - 1f) f = WIN_SCORE - 1f
         return f
     }
 

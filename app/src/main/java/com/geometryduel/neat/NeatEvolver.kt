@@ -41,6 +41,8 @@ class NeatEvolver {
         this.populationSize = populationSize
         this.rng = rng
         this.counter = Genome.InnovationCounter(inputCount * outputCount, inputCount + outputCount)
+        // 预登记初始全连接块创新号，保证日后重建同结构连接时复用旧号
+        this.counter.seedBase(inputCount, outputCount)
         repeat(populationSize) { population.add(createMinimal()) }
     }
 
@@ -52,6 +54,8 @@ class NeatEvolver {
         this.population = population
         this.counter = counter
         this.rng = rng
+        // 存档只存了计数器值：从种群连接重建全局创新号表，避免既有结构被重发新号
+        this.counter.rebuildFrom(population)
     }
 
     private fun createMinimal(): Genome {
@@ -200,7 +204,8 @@ class NeatEvolver {
         // 先发布物种快照（best 引用旧种群基因组，不依赖索引），再替换种群
         currentSpecies = species
         population = next
-        counter.endGeneration()
+        // 全局创新号表跨代持久（标准 NEAT）；过大时按当前种群修剪以控制内存
+        counter.retainOnly(population)
     }
 
     // ---- 锦标赛选择 ----
@@ -213,7 +218,11 @@ class NeatEvolver {
         return best
     }
 
-    /** 使用基因组自身的突变率 (B)。轮盘按各率之和归一化，保证所有变异类型按设定比例发生。 */
+    /**
+     * 使用基因组自身的突变率 (B)：各类变异按自身概率独立判定（经典 NEAT）。
+     * 权重微调几乎总会发生，结构变异按小概率叠加，
+     * 子代不再出现"该代零权重调优"，收敛更快。
+     */
     private fun mutateWithOwnRates(g: Genome) {
         g.mutateMutationRates(rng) // 先变异突变率本身
         if (stagnantGenerations > 8) {
@@ -222,24 +231,13 @@ class NeatEvolver {
             g.addNodeProb = minOf(0.5f, g.addNodeProb * 1.5f)
             g.addConnProb = minOf(0.3f, g.addConnProb * 1.5f)
         }
-        val total = g.weightMutProb + g.addNodeProb + g.addConnProb + g.toggleProb +
-                g.resetProb + g.activationProb + g.removeProb
-        val r = rng.nextFloat() * total
-        val a = g.weightMutProb
-        val b = a + g.addNodeProb
-        val c = b + g.addConnProb
-        val d = c + g.toggleProb
-        val e = d + g.resetProb
-        val f = e + g.activationProb
-        when {
-            r < a -> g.mutateWeights(rng)
-            r < b -> g.mutateAddNode(rng, counter)
-            r < c -> g.mutateAddConnection(rng, counter)
-            r < d -> g.mutateToggleConnection(rng)
-            r < e -> g.mutateResetWeights(rng)
-            r < f -> g.mutateActivation(rng)
-            else -> g.mutateRemoveConnection(rng)
-        }
+        if (rng.nextFloat() < g.weightMutProb) g.mutateWeights(rng)
+        if (rng.nextFloat() < g.addNodeProb) g.mutateAddNode(rng, counter)
+        if (rng.nextFloat() < g.addConnProb) g.mutateAddConnection(rng, counter)
+        if (rng.nextFloat() < g.toggleProb) g.mutateToggleConnection(rng)
+        if (rng.nextFloat() < g.resetProb) g.mutateResetWeights(rng)
+        if (rng.nextFloat() < g.activationProb) g.mutateActivation(rng)
+        if (rng.nextFloat() < g.removeProb) g.mutateRemoveConnection(rng)
     }
 
     // ---- 物种标签 (D) ----

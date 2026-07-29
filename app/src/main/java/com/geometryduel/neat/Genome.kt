@@ -310,11 +310,15 @@ class Genome {
         )
     }
 
-    /** 创新号/节点号计数器 */
+    /**
+     * 创新号/节点号计数器。
+     * 全局创新号表在整个进化史中持久（标准 NEAT）：同一 (in,out) 结构无论何时
+     * 出现都复用同一创新号，跨代距离比较与杂交对齐才不会把相同结构误判为不同基因。
+     */
     class InnovationCounter {
         var nextInnovation: Int
         var nextNode: Int
-        private val genMap = HashMap<String, Int>()
+        private val genMap = HashMap<Long, Int>()
 
         constructor() {
             nextInnovation = 0
@@ -326,18 +330,48 @@ class Genome {
             this.nextNode = nextNode
         }
 
+        private fun key(`in`: Int, out: Int): Long =
+            (`in`.toLong() shl 32) or (out.toLong() and 0xffffffffL)
+
         fun innovation(`in`: Int, out: Int): Int {
-            val key = "$`in`:$out"
-            val v = genMap[key]
+            val k = key(`in`, out)
+            val v = genMap[k]
             if (v != null) return v
             val r = nextInnovation++
-            genMap[key] = r
+            genMap[k] = r
             return r
         }
 
         fun nextNodeId(): Int = nextNode++
 
-        fun endGeneration() = genMap.clear()
+        /** 预登记初始全连接块的创新号（i*O+o），连接被删除后再重现时复用旧号。 */
+        fun seedBase(inputCount: Int, outputCount: Int) {
+            for (i in 0 until inputCount)
+                for (o in 0 until outputCount)
+                    genMap[key(i, inputCount + o)] = i * outputCount + o
+        }
+
+        /** 从种群现有连接重建全局表（载入存档后调用，避免既有结构被重发新号）。 */
+        fun rebuildFrom(population: List<Genome>) {
+            for (g in population) for (c in g.conns) {
+                val k = key(c.`in`, c.out)
+                if (!genMap.containsKey(k)) genMap[k] = c.innovation
+            }
+        }
+
+        /**
+         * 表过大时修剪为当前种群仍存在的结构，控制内存占用。
+         * 被修剪结构日后重现会获发新号，仅影响与历史个体的对齐（它们不参与距离计算），影响可忽略。
+         */
+        fun retainOnly(population: List<Genome>) {
+            if (genMap.size < 50000) return
+            val alive = HashSet<Long>(population.size * 64)
+            for (g in population) for (c in g.conns) alive.add(key(c.`in`, c.out))
+            val it = genMap.entries.iterator()
+            while (it.hasNext()) {
+                if (!alive.contains(it.next().key)) it.remove()
+            }
+        }
     }
 
 }

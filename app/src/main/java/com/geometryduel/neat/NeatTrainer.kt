@@ -244,7 +244,9 @@ class NeatTrainer(private val app: DuelController, rayCount: Int) {
         championElo = updateElo(championElo, opponentRating, m.aiWon)
         val eloDiff = opponentRating - championElo
         val mult = 1f + (eloDiff / 400f).coerceIn(-0.5f, 0.5f)
-        realMatchBonus += (if (m.aiWon) 1000f else -30f) * mult + m.teleportKills * 15f
+        // 缩放到常规适应度量级（胜局=100）：赢玩家≈多赢1.5场模拟，
+        // 定向强化冠军血脉但不至于锁死选择、压制种群多样性
+        realMatchBonus += (if (m.aiWon) 150f else -15f) * mult + m.teleportKills * 10f
     }
 
     fun getChampionElo() = championElo
